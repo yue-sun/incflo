@@ -1,0 +1,99 @@
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            SIMULATION STOP            #
+#.......................................#
+stop_time               =   0.5         # Max (simulated) time to evolve
+max_step                =   -1          # Max number of time steps
+steady_state            =   1           # Steady-state solver? 
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#         TIME STEP COMPUTATION         #
+#.......................................#
+incflo.fixed_dt         =   -1          # Use this constant dt if > 0
+incflo.cfl              =   0.5         # CFL factor
+incflo.steady_state_tol =   1.e-3       # Steady-state error tolerance
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            INPUT AND OUTPUT           #
+#.......................................#
+amr.plot_int            =   1000         # Steps between plot files
+amr.check_int           =   10000        # Steps between checkpoint files
+amr.restart             =   ""          # Checkpoint to restart from 
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#               PHYSICS                 #
+#.......................................#
+incflo.gravity          =   0.  0.  0.  # Gravitational force (3D)
+incflo.ro_0             =   1000.0      # Reference density
+
+incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
+incflo.mu               =   0.001       # Dynamic viscosity coefficient
+
+incflo.constant_density =   true        #
+incflo.advect_momentum  =   true
+incflo.advect_tracer    =   true        # Should we update them?
+incflo.redistribution_type = FluxRedist	## NoRedist FluxRedist MergeRedist StateRedist
+
+#incflo.advection_type   = MOL
+#incflo.diffusion_type   = 0
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           REDOX FLOW BATTERY          #
+#.......................................#
+#incflo.sim_rfb          = true
+#incflo.rfb_geom         = 6
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#        ADAPTIVE MESH REFINEMENT       #
+#.......................................#
+amr.n_cell              =   160 80 32    # Grid cells at coarsest AMRlevel
+amr.max_level           =   0            # Max AMR level in hierarchy 
+amr.ref_ratio           =   2 2 2        # refinement ratio
+amr.max_grid_size_x     =   32
+amr.max_grid_size_y     =   32
+amr.max_grid_size_z     =   32
+amr.blocking_factor_x   =   8     # block factor in x-direction
+amr.blocking_factor_y   =   8     # block factor in y-direction
+amr.blocking_factor_z   =   8     # block factor in z-direction
+
+incflo.tag_region       =   true
+incflo.tag_region_lo.   =   0.0 0.0 0.0
+incflo.tag_region_hi.   =   800e-6 400e-6 160e-6
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              GEOMETRY                 #
+#.......................................#
+geometry.prob_lo        =   0.0     0.0     0.0     # Lo corner coordinates
+geometry.prob_hi        =   800e-6 400e-6 160e-6    # Hi corner coordinates
+geometry.is_periodic    =   1       0       0       # Periodicity x y z (0/1)
+
+# Boundary conditions
+incflo.delp             =   2.25  0.  0.  # Prescribed (cyclic) pressure gradient
+
+#xlo.type                =   "pi"
+#xlo.pressure            =   2.25
+#xhi.type                =   "po"
+#xhi.pressure            =   0.
+
+ylo.type                = "nsw"
+yhi.type                = "nsw"
+
+zlo.type                = "nsw"
+zhi.type                = "nsw"
+
+incflo.geometry = "all_regular"
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           INITIAL CONDITIONS          #
+#.......................................#
+#incflo.probtype         =   732
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              VERBOSITY                #
+#.......................................#
+amr.verbose              =      0
+incflo.verbose           =      1          # incflo itself
+mac_proj.verbose         =      0          # MAC Projector
+nodal_proj.verbose       =      0          # Nodal Projector
+scalar_diffusion.mg_verbose =   0
+
+amr.plotVariables        =   velx vely velz magvel vort density p
