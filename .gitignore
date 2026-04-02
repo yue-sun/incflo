@@ -56,3 +56,9 @@ test/tmp_build_dir/
 test/Backtrace.*
 test/*plt*/
 test/chk*/
+
+rfb*/*.ex
+rfb*/tmp_build_dir/
+rfb*/Backtrace.*
+rfb*/*plt*/
+rfb*/chk*/
