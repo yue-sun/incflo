@@ -377,7 +377,7 @@ public:
     //
     ///////////////////////////////////////////////////////////////////////////
 
-    static bool SteadyStateReached ();
+    bool SteadyStateReached ();
 
     void InitialPressureProjection ();
 
