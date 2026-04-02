@@ -17,17 +17,18 @@ using namespace amrex;
 //
 bool incflo::SteadyStateReached()
 {
-
-    amrex::Abort("xxxxx TODO: SteadyStateReached");
-    return false;
-#if 0
     BL_PROFILE("incflo::SteadyStateReached()");
 
-    int condition1[finest_level + 1];
-    int condition2[finest_level + 1];
+    Vector<int> condition1(finest_level + 1);
+    Vector<int> condition2(finest_level + 1);
+
+    auto vel = get_velocity_new();
+    auto vel_o = get_velocity_old();
 
     // Make sure velocity is up to date
-    incflo_set_velocity_bcs(m_cur_time, vel);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        fillpatch_velocity(lev, m_cur_time, *vel[lev], 0);
+    }
 
     // Use temporaries to store the difference between current and previous solution
     Vector<std::unique_ptr<MultiFab>> diff_vel;
@@ -47,17 +48,16 @@ bool incflo::SteadyStateReached()
         for(int i = 0; i < AMREX_SPACEDIM; i++)
         {
             // max(abs(u^{n+1}-u^n))
-            max_change = amrex::max(max_change, Norm(diff_vel, lev, i, 0));
+            max_change = amrex::max(max_change, diff_vel[lev]->norm0(i, 0));
 
             // sum(abs(u^{n+1}-u^n)) / sum(abs(u^n))
-            // TODO: this gives zero often, check for bug
-            Real norm1_diff = Norm(diff_vel, lev, i, 1);
-            Real norm1_old = Norm(vel_o, lev, i, 1);
+            Real norm1_diff = diff_vel[lev]->norm1(i, 0);
+            Real norm1_old = vel_o[lev]->norm1(i, 0);
             Real relchange = norm1_old > 1.0e-15 ? norm1_diff / norm1_old : 0.0;
             max_relchange = amrex::max(max_relchange, relchange);
         }
 
-        condition1[lev] = (max_change < m_steady_state_tol * dt);
+        condition1[lev] = (max_change < m_steady_state_tol * m_dt);
         condition2[lev] = (max_relchange < m_steady_state_tol);
 
         // Print out info on steady state checks
@@ -65,7 +65,7 @@ bool incflo::SteadyStateReached()
         {
             amrex::Print() << "\nSteady state check level " << lev << std::endl;
             amrex::Print() << "||u-uo||/||uo|| = " << max_relchange
-                           << ", du/dt  = " << max_change/dt << std::endl;
+                           << ", du/dt  = " << max_change/m_dt << std::endl;
         }
     }
 
@@ -80,8 +80,10 @@ bool incflo::SteadyStateReached()
     if(m_nstep < 2)
     {
         return false;
-    } else {
+    }
+    else
+    {
         return reached;
     }
-#endif
 }
+
