@@ -708,6 +708,9 @@ private:
         amrex::MultiFab laps_o;
         amrex::MultiFab laps_tem;
         amrex::MultiFab laps_tem_o;
+
+        // RFB MultiFabs
+        amrex::MultiFab cell_type;
     };
 
     bool m_use_temperature = false;
@@ -1045,6 +1048,14 @@ private:
     void WritePlotVariables (amrex::Vector<std::string> vars, const std::string& plotfilename);
     virtual void WriteSmallPlotFile ();
     void ReadCheckpointFile ();
+
+    ///////////////////////////////////////////////////////////////////////////
+    //
+    // redox flow battery
+    //
+    ///////////////////////////////////////////////////////////////////////////
+#include "rfb/incflo_rfb.H"
+
 };
 
 #endif

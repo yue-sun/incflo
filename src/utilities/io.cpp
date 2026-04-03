@@ -693,6 +693,13 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
             ++icomp;
 #endif
         }
+        else if (vars[n] == "cell_type") {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                MultiFab::Copy(mf[lev], m_leveldata[lev]->cell_type, 0, icomp, 1, 0);
+            }
+            pltscaVarsName.push_back("cell_type");
+            ++icomp;
+        }
         else {
             amrex::Abort("incflo::WritePlotfileVariables : plotfile variable '"+vars[n]+"' not found");
         }
