@@ -638,6 +638,11 @@ private:
     // Require user to choose smallplotfile variables
     amrex::Vector<std::string> m_smallplotVars;
 
+    // ***************************************************************
+    // ***************************************************************
+    // RFB settings
+    bool m_sim_rfb = false;
+
 
 #ifdef INCFLO_USE_PARTICLES
     // Particle container with all particle species

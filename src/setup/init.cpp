@@ -174,6 +174,9 @@ void incflo::ReadParameters ()
         pp.query("mu_T", m_mu_T);
         pp.query("cp", m_cp);
 
+        // RFB settings
+        pp.query("sim_rfb", m_sim_rfb);
+
     } // end prefix incflo
 
     ReadIOParameters();
@@ -472,12 +475,16 @@ void incflo::InitialIterations ()
     {
         if (m_verbose) amrex::Print() << "\n In initial_iterations: iter = " << iter << "\n";
 
-     ApplyPredictor(true);
+        ApplyPredictor(true);
 
         copy_from_old_to_new_velocity();
         copy_from_old_to_new_density();
         copy_from_old_to_new_tracer();
         copy_from_old_to_new_temperature();
+
+        if (m_sim_rfb) {
+            set_rfb_velocity();
+        }
     }
 
     // Reset dt to get initial step as specified, otherwise we can see increase to dt

@@ -196,6 +196,14 @@ void incflo::prob_init_fluid (int lev)
                                domain, dx, problo, probhi);
 
         }
+        else if (732 == m_probtype)
+        {
+            init_rfb_geometry(vbx, gbx,
+                              ld.velocity.array(mfi),
+                              ld.density.array(mfi),
+                              ld.cell_type.array(mfi),
+                              domain, dx, problo, probhi);
+        }
         else
         {
             amrex::Abort("prob_init_fluid: unknown m_probtype");

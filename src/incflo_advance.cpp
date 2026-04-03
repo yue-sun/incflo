@@ -82,6 +82,11 @@ void incflo::Advance()
         ApplyCorrector();
     }
 
+// TODO: Make this into a ifdef
+    if (m_sim_rfb) {
+        set_rfb_velocity();
+    }
+
 #ifdef INCFLO_USE_PARTICLES
     particleData.Redistribute();
 #endif
