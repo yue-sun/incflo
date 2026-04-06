@@ -11,7 +11,6 @@ Bdirs += src/derive
 Bdirs += src/diffusion
 Bdirs += src/prob
 Bdirs += src/projection
-Bdirs += src/rfb
 Bdirs += src/rheology
 Bdirs += src/setup
 Bdirs += src/utilities
@@ -24,6 +23,11 @@ endif
 ifeq ($(USE_EB), TRUE)
   Bdirs += src/embedded_boundaries
   USERSuffix += .EB
+endif
+
+ifeq ($(SIM_RFB), TRUE)
+  DEFINES += -DINCFLO_SIM_RFB
+  Bdirs += src/rfb
 endif
 
 Bpack += $(foreach dir, $(Bdirs), $(TOP)/$(dir)/Make.package)

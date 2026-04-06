@@ -639,9 +639,9 @@ private:
     amrex::Vector<std::string> m_smallplotVars;
 
     // ***************************************************************
-    // ***************************************************************
-    // RFB settings
+#ifdef INCFLO_SIM_RFB
     bool m_sim_rfb = false;
+#endif
 
 
 #ifdef INCFLO_USE_PARTICLES
@@ -714,8 +714,8 @@ private:
         amrex::MultiFab laps_tem;
         amrex::MultiFab laps_tem_o;
 
-        // RFB MultiFabs
-        amrex::MultiFab cell_type;
+        // RFB mask: 0 fluid, 1 solid
+        amrex::iMultiFab cell_type;
     };
 
     bool m_use_temperature = false;
@@ -1059,7 +1059,9 @@ private:
     // redox flow battery
     //
     ///////////////////////////////////////////////////////////////////////////
+#ifdef INCFLO_SIM_RFB
 #include "rfb/incflo_rfb.H"
+#endif
 
 };
 
