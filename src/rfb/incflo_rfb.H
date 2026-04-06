@@ -6,7 +6,7 @@
 void init_rfb_geometry (amrex::Box const& vbx, amrex::Box const& gbx,
                         amrex::Array4<amrex::Real> const& vel,
                         amrex::Array4<amrex::Real> const& density,
-                        amrex::Array4<amrex::Real> const& cell_type,
+                        amrex::Array4<int> const& cell_type,
                         amrex::Box const& domain,
                         amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& dx, 
                         amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& problo, 

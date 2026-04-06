@@ -695,7 +695,15 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
         }
         else if (vars[n] == "cell_type") {
             for (int lev = 0; lev <= finest_level; ++lev) {
-                MultiFab::Copy(mf[lev], m_leveldata[lev]->cell_type, 0, icomp, 1, 0);
+                for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box const& bx = mfi.tilebox();
+                    Array4<Real> const& dst = mf[lev].array(mfi);
+                    Array4<int const> const& src = m_leveldata[lev]->cell_type.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        dst(i,j,k,icomp) = static_cast<Real>(src(i,j,k));
+                    });
+                }
             }
             pltscaVarsName.push_back("cell_type");
             ++icomp;

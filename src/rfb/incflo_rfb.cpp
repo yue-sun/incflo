@@ -28,7 +28,7 @@ Real half_l_filament = l_filament / 2.0; // half filament length
 void incflo::init_rfb_geometry(amrex::Box const &vbx, amrex::Box const &gbx,
                                amrex::Array4<amrex::Real> const &vel,
                                amrex::Array4<amrex::Real> const &density,
-                               amrex::Array4<amrex::Real> const &cell_type,
+                               amrex::Array4<int> const &cell_type,
                                amrex::Box const &domain,
                                amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                                amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
@@ -50,10 +50,10 @@ void incflo::init_rfb_geometry(amrex::Box const &vbx, amrex::Box const &gbx,
                     Real &velx = vel(i, j, k, 0);
                     Real &vely = vel(i, j, k, 1);
                     Real &velz = vel(i, j, k, 2);
-                    Real &cell_type_ijk = cell_type(i, j, k);
+                    int &cell_type_ijk = cell_type(i, j, k);
 
                     // Initialize all cell_type to 0 (fluid)
-                    cell_type_ijk = 0.0;
+                    cell_type_ijk = 0;
 
                     // TODO: Merge this into an input file
                     Real xc = Real(300e-6); // center x
@@ -74,7 +74,7 @@ void incflo::init_rfb_geometry(amrex::Box const &vbx, amrex::Box const &gbx,
 
                     if (in_cap_1 || in_cap_2 || in_cylinder)
                     {
-                        cell_type_ijk = 1.0; // solid cell
+                        cell_type_ijk = 1; // solid cell
                         velx = 0.0;
                         vely = 0.0;
                         velz = 0.0;
@@ -102,12 +102,12 @@ void incflo::set_rfb_velocity()
         {
             Box const &bx = mfi.tilebox();
             Array4<Real> const &vel = ld.velocity.array(mfi);
-            Array4<Real const> const &cell_type = ld.cell_type.const_array(mfi);
+            Array4<int const> const &cell_type = ld.cell_type.const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
                 // Cell_type: solid (filament)
-                if (cell_type(i,j,k) == 1.0)
+                if (cell_type(i,j,k) == 1)
                 {
                     vel(i,j,k,0) = 0.0;
                     vel(i,j,k,1) = 0.0;
