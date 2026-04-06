@@ -218,6 +218,12 @@ void incflo::ApplyPredictor (bool incremental_projection)
     // **********************************************************************************************
     update_velocity(StepType::Predictor, vel_eta, vel_forces);
 
+#ifdef INCFLO_SIM_RFB
+    // Zero solid-cell velocity before projection so the divergence source term
+    // (RHS of the Poisson equation) is consistent with the no-slip/no-penetration
+    set_rfb_velocity();
+#endif
+
     // **********************************************************************************************
     // Project velocity field, update pressure
     // **********************************************************************************************

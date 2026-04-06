@@ -65,6 +65,10 @@ void incflo::Advance()
     }
 #endif
 
+#ifdef INCFLO_SIM_RFB
+        set_rfb_velocity();
+#endif
+
     ApplyPredictor();
 
     if (m_advection_type == "MOL") {
@@ -82,10 +86,9 @@ void incflo::Advance()
         ApplyCorrector();
     }
 
-// TODO: Make this into a ifdef
-    if (m_sim_rfb) {
-        set_rfb_velocity();
-    }
+#ifdef INCFLO_SIM_RFB
+    set_rfb_velocity();
+#endif
 
 #ifdef INCFLO_USE_PARTICLES
     particleData.Redistribute();
