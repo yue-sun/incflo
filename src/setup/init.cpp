@@ -177,6 +177,11 @@ void incflo::ReadParameters ()
 #ifdef INCFLO_SIM_RFB
         // RFB settings
         pp.query("sim_rfb", m_sim_rfb);
+        pp.query("rfb_num_fibers", m_rfb_num_fibers);
+        m_rfb_fiber_dirs.resize(AMREX_SPACEDIM * m_rfb_num_fibers, 0.);
+        m_rfb_fiber_centers.resize(AMREX_SPACEDIM * m_rfb_num_fibers, 0.);
+        pp.queryarr("rfb_fiber_dirs", m_rfb_fiber_dirs, 0, AMREX_SPACEDIM * m_rfb_num_fibers);
+        pp.queryarr("rfb_fiber_centers", m_rfb_fiber_centers, 0, AMREX_SPACEDIM * m_rfb_num_fibers);
 #endif
 
     } // end prefix incflo

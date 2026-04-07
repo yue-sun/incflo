@@ -39,6 +39,10 @@ void incflo::init_rfb_geometry(amrex::Box const &vbx, amrex::Box const &gbx,
     amrex::Abort("init_rfb_geometry not implemented for 2D");
 #elif (AMREX_SPACEDIM == 3)
 
+    auto const num_fibers = m_rfb_num_fibers;
+    auto const fiber_center = m_rfb_fiber_centers;
+    auto const fiber_dir = m_rfb_fiber_dirs;
+
     ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     // Compute cell center coordinates
@@ -55,29 +59,45 @@ void incflo::init_rfb_geometry(amrex::Box const &vbx, amrex::Box const &gbx,
                     // Initialize all cell_type to 0 (fluid)
                     cell_type_ijk = 0;
 
-                    // TODO: Merge this into an input file
-                    Real xc = Real(300e-6); // center x
-                    Real yc = Real(200e-6); // center y
-                    Real zc = Real(80e-6); // center z
-                    // Solid geometry: spherocylinder
-                    // Cap 1
-                    Real xx = x - xc;
-                    Real yy = y - yc - half_l_filament;
-                    Real zz = z - zc;
-                    bool in_cap_1 = (xx * xx + yy * yy + zz * zz <= r_filament * r_filament);
-                    // Cap 2
-                    yy = y - yc + half_l_filament; // shift y for cap 2
-                    bool in_cap_2 = (xx * xx + yy * yy + zz * zz <= r_filament * r_filament);
-                    // Cylinder
-                    yy = y - yc; // shift y for cylinder
-                    bool in_cylinder = (xx * xx + zz * zz <= r_filament * r_filament) && (amrex::Math::abs(yy) <= half_l_filament);
-
-                    if (in_cap_1 || in_cap_2 || in_cylinder)
+                    // Loop over all fibers
+                    for (int n = 0; n < num_fibers; ++n)
                     {
-                        cell_type_ijk = 1; // solid cell
-                        velx = 0.0;
-                        vely = 0.0;
-                        velz = 0.0;
+                        Real xc = fiber_center[AMREX_SPACEDIM * n + 0];
+                        Real yc = fiber_center[AMREX_SPACEDIM * n + 1];
+                        Real zc = fiber_center[AMREX_SPACEDIM * n + 2];
+
+                        Real ax = fiber_dir[AMREX_SPACEDIM * n + 0];
+                        Real ay = fiber_dir[AMREX_SPACEDIM * n + 1];
+                        Real az = fiber_dir[AMREX_SPACEDIM * n + 2];
+
+                        // Solid geometry: spherocylinder
+                        Real rx = x - xc;
+                        Real ry = y - yc;
+                        Real rz = z - zc;
+
+                        Real rdot_axis = rx * ax + ry * ay + rz * az;
+                        Real rnorm2 = rx * rx + ry * ry + rz * rz;
+                        Real rperp2 = rnorm2 - rdot_axis * rdot_axis;
+
+                        Real cap1x = rx + half_l_filament * ax;
+                        Real cap1y = ry + half_l_filament * ay;
+                        Real cap1z = rz + half_l_filament * az;
+                        bool in_cap_1 = (cap1x * cap1x + cap1y * cap1y + cap1z * cap1z <= r_filament * r_filament);
+
+                        Real cap2x = rx - half_l_filament * ax;
+                        Real cap2y = ry - half_l_filament * ay;
+                        Real cap2z = rz - half_l_filament * az;
+                        bool in_cap_2 = (cap2x * cap2x + cap2y * cap2y + cap2z * cap2z <= r_filament * r_filament);
+
+                        bool in_cylinder = (amrex::Math::abs(rdot_axis) <= half_l_filament) && (rperp2 <= r_filament * r_filament);
+
+                        if (in_cap_1 || in_cap_2 || in_cylinder)
+                        {
+                            cell_type_ijk = 1; // solid cell
+                            velx = 0.0;
+                            vely = 0.0;
+                            velz = 0.0;
+                        }
                     }
                 });
 #endif
