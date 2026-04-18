@@ -16,6 +16,9 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     static Vector<Real> rhoerr_v, gradrhoerr_v;
 
     static bool tag_region;
+#ifdef INCFLO_SIM_RFB
+    static bool tag_solids;
+#endif
 
     if (first) {
         first = false;
@@ -41,13 +44,17 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         pp.queryarr("tag_region_lo", tag_region_lo);
         pp.queryarr("tag_region_hi", tag_region_hi);
+
+#ifdef INCFLO_SIM_RFB
+        tag_solids = false;
+        pp.query("tag_solids", tag_solids);
+#endif
     }
 
     const auto   tagval = TagBox::SET;
 
     bool tag_rho = levc < rhoerr_v.size();
     bool tag_gradrho = levc < gradrhoerr_v.size();
-
     if (tag_gradrho) {
         fillpatch_density(levc, time, m_leveldata[levc]->density, 1);
     }
@@ -134,6 +141,21 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             });
 #endif
         }
+
+#ifdef INCFLO_SIM_RFB
+        if (tag_solids)
+        {
+            auto const& cell_type = m_leveldata[levc]->cell_type.const_array(mfi);
+            auto const& vel = m_leveldata[levc]->velocity.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (cell_type(i,j,k) == 1) // solid cell
+                {
+                    tag(i,j,k) = tagval;
+                }
+            });
+        }
+#endif
     } // mfi
 
 #ifdef AMREX_USE_EB

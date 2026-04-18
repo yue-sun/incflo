@@ -10,9 +10,15 @@ using namespace amrex;
 
 // TODO: Have classes to determine which RFB geometry to use
 
-// 1. Benchmark: Minecraft vs cutcell simulation
-Real d_filament = Real(35e-6);           // filament diameter
-Real l_filament = Real(200e-6);          // filament length
+// // 1. Benchmark: Minecraft vs cutcell simulation
+// Real d_filament = Real(35e-6);           // filament diameter
+// Real l_filament = Real(200e-6);          // filament length
+// Real r_filament = d_filament / 2.0;      // filament radius
+// Real half_l_filament = l_filament / 2.0; // half filament length
+
+// 2. Compare with Sofia's measurements
+Real d_filament = Real(42e-6);           // filament diameter
+Real l_filament = Real(600e-6);          // filament length
 Real r_filament = d_filament / 2.0;      // filament radius
 Real half_l_filament = l_filament / 2.0; // half filament length
 

@@ -66,7 +66,7 @@ void incflo::Advance()
 #endif
 
 #ifdef INCFLO_SIM_RFB
-        set_rfb_velocity();
+        // set_rfb_velocity();
 #endif
 
     ApplyPredictor();
@@ -87,7 +87,7 @@ void incflo::Advance()
     }
 
 #ifdef INCFLO_SIM_RFB
-    set_rfb_velocity();
+    // set_rfb_velocity();
 #endif
 
 #ifdef INCFLO_USE_PARTICLES
