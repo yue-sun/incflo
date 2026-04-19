@@ -10,7 +10,7 @@ steady_state            =   1           # Steady-state solver?
 #.......................................#
 incflo.fixed_dt         =   -1          # Use this constant dt if > 0
 incflo.cfl              =   0.5         # CFL factor
-incflo.steady_state_tol =   5.e-3       # Steady-state error tolerance
+incflo.steady_state_tol =   5.e-1       # Steady-state error tolerance
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
@@ -38,14 +38,13 @@ incflo.redistribution_type = FluxRedist	## NoRedist FluxRedist MergeRedist State
 #.......................................#
 incflo.probtype          =   732
 incflo.sim_rfb           =   true
-incflo.rfb_num_fibers    =   16
-incflo.rfb_fiber_dirs    =   1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0.   0. 1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0.   1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0. 1. 0. 0.
-incflo.rfb_fiber_centers =   480e-6 200e-6 80e-6 480e-6 242e-6 80e-6 480e-6 437e-6 80e-6 480e-6 479e-6 80e-6 480e-6 674e-6 80e-6 480e-6 716e-6 80e-6   160e-6 480e-6 103e-6 357e-6 480e-6 103e-6 554e-6 480e-6 103e-6 751e-6 480e-6 103e-6   480e-6 200e-6 124e-6 480e-6 242e-6 124e-6 480e-6 437e-6 124e-6 480e-6 479e-6 124e-6 480e-6 674e-6 124e-6 480e-6 716e-6 124e-6 
+incflo.rfb_num_fibers    =   1
+incflo.rfb_loc_file      =   "loc.multi" 
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
-amr.n_cell              =   128 128 32    # Grid cells at coarsest AMRlevel
+amr.n_cell              =   128 96 32    # Grid cells at coarsest AMRlevel
 amr.max_level           =   2            # Max AMR level in hierarchy 
 amr.ref_ratio           =   2 2 2        # refinement ratio
 amr.max_grid_size_x     =   32
@@ -62,7 +61,7 @@ incflo.tag_solids       =   true
 #              GEOMETRY                 #
 #.......................................#
 geometry.prob_lo        =   0.0     0.0     0.0     # Lo corner coordinates
-geometry.prob_hi        =   960e-6  960e-6  240e-6    # Hi corner coordinates
+geometry.prob_hi        =   960e-6  720e-6  240e-6    # Hi corner coordinates
 geometry.is_periodic    =   0       0       0       # Periodicity x y z (0/1)
 
 # Boundary conditions
