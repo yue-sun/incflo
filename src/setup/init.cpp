@@ -177,11 +177,50 @@ void incflo::ReadParameters ()
 #ifdef INCFLO_SIM_RFB
         // RFB settings
         pp.query("sim_rfb", m_sim_rfb);
-        pp.query("rfb_num_fibers", m_rfb_num_fibers);
-        m_rfb_fiber_dirs.resize(AMREX_SPACEDIM * m_rfb_num_fibers, 0.);
-        m_rfb_fiber_centers.resize(AMREX_SPACEDIM * m_rfb_num_fibers, 0.);
-        pp.queryarr("rfb_fiber_dirs", m_rfb_fiber_dirs, 0, AMREX_SPACEDIM * m_rfb_num_fibers);
-        pp.queryarr("rfb_fiber_centers", m_rfb_fiber_centers, 0, AMREX_SPACEDIM * m_rfb_num_fibers);
+        pp.query("rfb_loc_file", m_rfb_loc_file);
+
+        std::ifstream ifs(m_rfb_loc_file);
+        if (!ifs.is_open()) {
+            amrex::Abort("Failed to open RFB location file: " + m_rfb_loc_file);
+        }
+
+        m_rfb_fibers.clear();
+
+        std::string line;
+        int line_no = 0;
+        while (std::getline(ifs, line)) {
+            ++line_no;
+
+            // Strip comments
+            auto hash_pos = line.find('#');
+            if (hash_pos != std::string::npos) {
+            line = line.substr(0, hash_pos);
+            }
+
+            // Skip empty/whitespace-only lines
+            if (line.find_first_not_of(" \t\r\n") == std::string::npos) {
+            continue;
+            }
+
+            std::istringstream iss(line);
+
+            Real diameter, length, ox, oy, oz, cx, cy, cz;
+            if (!(iss >> diameter >> length >> ox >> oy >> oz >> cx >> cy >> cz)) {
+                amrex::Abort("Invalid RFB entry at line " + std::to_string(line_no) +
+                             ". Expected: diameter length ox oy oz cx cy cz");
+            }
+
+            // Reject extra tokens on the line
+            std::string extra;
+            if (iss >> extra) {
+                amrex::Abort("Too many fields in RFB entry at line " + std::to_string(line_no));
+            }
+
+            // Store d l ox oy oz cx cy cz
+            m_rfb_fibers.push_back(amrex::Vector<Real>{diameter, length, ox, oy, oz, cx, cy, cz});
+        }
+
+        m_rfb_num_fibers = static_cast<int>(m_rfb_fibers.size());
 #endif
 
     } // end prefix incflo

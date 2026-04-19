@@ -642,8 +642,8 @@ private:
 #ifdef INCFLO_SIM_RFB
     bool m_sim_rfb = false;
     int m_rfb_num_fibers = 0;
-    amrex::Vector<amrex::Real> m_rfb_fiber_dirs;
-    amrex::Vector<amrex::Real> m_rfb_fiber_centers;
+    std::string m_rfb_loc_file = "";
+    amrex::Vector<amrex::Vector<amrex::Real>> m_rfb_fibers;
 #endif
 
 
