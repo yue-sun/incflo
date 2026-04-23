@@ -56,3 +56,8 @@ test/tmp_build_dir/
 test/Backtrace.*
 test/*plt*/
 test/chk*/
+cryo*/*.ex
+cryo*/tmp_build_dir/
+cryo*/Backtrace.*
+cryo*/*plt*/
+cryo*/chk*/
