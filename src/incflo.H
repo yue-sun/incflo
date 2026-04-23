@@ -1045,6 +1045,15 @@ private:
     void WritePlotVariables (amrex::Vector<std::string> vars, const std::string& plotfilename);
     virtual void WriteSmallPlotFile ();
     void ReadCheckpointFile ();
+
+    ///////////////////////////////////////////////////////////////////////////
+    //
+    // utilities
+    //
+    ///////////////////////////////////////////////////////////////////////////
+#ifdef INCFLO_SIM_CRYO
+#include "cryo.H"
+#endif
 };
 
 #endif

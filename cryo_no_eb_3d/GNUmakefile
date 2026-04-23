@@ -25,4 +25,6 @@ USE_EB = FALSE
 
 USE_CSG = FALSE
 
+SIM_CRYO = TRUE
+
 include ../src/Make.incflo

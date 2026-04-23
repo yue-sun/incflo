@@ -25,6 +25,12 @@ ifeq ($(USE_EB), TRUE)
   USERSuffix += .EB
 endif
 
+ifeq ($(SIM_CRYO), TRUE)
+  DEFINES += -DINCFLO_SIM_CRYO
+  Bdirs += src/cryo
+  USERSuffix += .CRYO
+endif
+
 Bpack += $(foreach dir, $(Bdirs), $(TOP)/$(dir)/Make.package)
 Blocs += $(foreach dir, $(Bdirs), $(TOP)/$(dir))
 
