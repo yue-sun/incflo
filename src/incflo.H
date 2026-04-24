@@ -1053,6 +1053,11 @@ private:
     ///////////////////////////////////////////////////////////////////////////
 #ifdef INCFLO_SIM_CRYO
 #include "cryo.H"
+
+#ifdef AMREX_USE_EB
+    void make_eb_cryo_cup ();
+#endif
+
 #endif
 };
 
