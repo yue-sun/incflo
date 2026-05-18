@@ -50,6 +50,7 @@ incflo::LevelData::LevelData (amrex::BoxArray const& ba,
 #ifdef INCFLO_SIM_CRYO
     if (my_incflo->m_sim_cryo) {
         cell_type.define(ba, dm, 1, my_incflo->nghost_state(), MFInfo(), fact);
+        cell_type_o.define(ba, dm, 1, my_incflo->nghost_state(), MFInfo(), fact);
     }
 #endif
     if (my_incflo->m_advection_type != "MOL") {

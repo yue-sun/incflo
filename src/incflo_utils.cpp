@@ -138,6 +138,26 @@ Vector<MultiFab*> incflo::get_temperature_new () noexcept
     return r;
 }
 
+Vector<MultiFab*> incflo::get_cell_type_old () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cell_type_o));
+    }
+    return r;
+}
+
+Vector<MultiFab*> incflo::get_cell_type_new () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cell_type));
+    }
+    return r;
+}
+
 Vector<MultiFab*> incflo::get_mac_phi() noexcept
 {
     Vector<MultiFab*> r;
@@ -390,6 +410,26 @@ Vector<MultiFab const*> incflo::get_temperature_new_const () const noexcept
     return r;
 }
 
+Vector<MultiFab const*> incflo::get_cell_type_old_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cell_type_o));
+    }
+    return r;
+}
+
+Vector<MultiFab const*> incflo::get_cell_type_new_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cell_type));
+    }
+    return r;
+}
+
 void incflo::copy_from_new_to_old_velocity (IntVect const& ng)
 {
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -485,5 +525,21 @@ void incflo::copy_from_old_to_new_temperature (IntVect const& ng)
     for (int lev = 0; lev <= finest_level; ++lev) {
         MultiFab::Copy(m_leveldata[lev]->temperature,
                        m_leveldata[lev]->temperature_o, 0, 0, 1, ng);
+    }
+}
+
+void incflo::copy_from_new_to_old_cell_type (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        MultiFab::Copy(m_leveldata[lev]->cell_type_o,
+                       m_leveldata[lev]->cell_type, 0, 0, 1, ng);
+    }
+}
+
+void incflo::copy_from_old_to_new_cell_type (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        MultiFab::Copy(m_leveldata[lev]->cell_type,
+                       m_leveldata[lev]->cell_type_o, 0, 0, 1, ng);
     }
 }

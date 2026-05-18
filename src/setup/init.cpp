@@ -177,6 +177,9 @@ void incflo::ReadParameters ()
 #ifdef INCFLO_SIM_CRYO
         // Cryoflo
         pp.query("sim_cryo", m_sim_cryo);
+        if (m_sim_cryo) {
+            pp.query("cryo_geometry", m_cryo_geometry);
+        }
 #endif
 
     } // end prefix incflo
@@ -459,6 +462,7 @@ void incflo::InitialIterations ()
     copy_from_new_to_old_density();
     copy_from_new_to_old_tracer();
     copy_from_new_to_old_temperature();
+    copy_from_new_to_old_cell_type();
 
     int initialisation = 1;
     bool explicit_diffusion = (m_diff_type == DiffusionType::Explicit);
@@ -480,7 +484,7 @@ void incflo::InitialIterations ()
         fillpatch_density(lev, m_t_old[lev], m_leveldata[lev]->density_o, ng);
 #ifdef INCFLO_SIM_CRYO
         if (m_sim_cryo) {
-            fillpatch_cell_type(lev, m_t_old[lev], m_leveldata[lev]->cell_type, ng);
+            fillpatch_cell_type(lev, m_t_old[lev], m_leveldata[lev]->cell_type_o, ng);
         }
 #endif
         if (m_advect_tracer) {
@@ -501,6 +505,7 @@ void incflo::InitialIterations ()
         copy_from_old_to_new_density();
         copy_from_old_to_new_tracer();
         copy_from_old_to_new_temperature();
+        copy_from_old_to_new_cell_type();
     }
 
     // Reset dt to get initial step as specified, otherwise we can see increase to dt
@@ -674,6 +679,11 @@ incflo::InitialRedistribution ()
             MultiFab::Copy(ld.temperature_o, ld.temperature, 0, 0, 1, ld.temperature.nGrow());
             fillpatch_temperature(lev, m_t_new[lev], ld.temperature_o, 3);
         }
+        if (m_sim_cryo) {
+            ld.cell_type.FillBoundary(geom[lev].periodicity());
+            MultiFab::Copy(ld.cell_type_o, ld.cell_type, 0, 0, 1, ld.cell_type.nGrow());
+            fillpatch_cell_type(lev, m_t_new[lev], ld.cell_type_o, 3);
+        }
 
         for (MFIter mfi(ld.density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -733,6 +743,16 @@ incflo::InitialRedistribution ()
                                               flag, AMREX_D_DECL(apx, apy, apz), vfrac,
                                               AMREX_D_DECL(fcx, fcy, fcz), ccc,
                                               bc_T, geom[lev], m_redistribution_type);
+                }
+                if (m_sim_cryo) {
+                    ncomp = 1;
+                    // TODO: change the bc
+                    auto const& bc_cell_type = get_density_bcrec_device_ptr();
+                    ApplyInitialRedistribution( bx,ncomp,
+                                              ld.cell_type.array(mfi), ld.cell_type_o.array(mfi),
+                                              flag, AMREX_D_DECL(apx, apy, apz), vfrac,
+                                              AMREX_D_DECL(fcx, fcy, fcz), ccc,
+                                              bc_cell_type, geom[lev], m_redistribution_type);
                 }
             }
         }

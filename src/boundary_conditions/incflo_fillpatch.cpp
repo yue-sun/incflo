@@ -84,7 +84,7 @@ void incflo::fillpatch_cell_type (int lev, Real time, MultiFab& cell_type, int n
         PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > physbc(geom[lev], get_density_bcrec(),
                                                             IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
         FillPatchSingleLevel(cell_type, IntVect(ng), time,
-                             {&(m_leveldata[lev]->cell_type),
+                             {&(m_leveldata[lev]->cell_type_o),
                               &(m_leveldata[lev]->cell_type)},
                              {m_t_old[lev], m_t_new[lev]}, 0, 0, 1, geom[lev],
                              physbc, 0);
@@ -101,10 +101,10 @@ void incflo::fillpatch_cell_type (int lev, Real time, MultiFab& cell_type, int n
         Interpolater* mapper = &cell_cons_interp;
 #endif
         FillPatchTwoLevels(cell_type, IntVect(ng), time,
-                           {&(m_leveldata[lev-1]->cell_type),
+                           {&(m_leveldata[lev-1]->cell_type_o),
                             &(m_leveldata[lev-1]->cell_type)},
                            {m_t_old[lev-1], m_t_new[lev-1]},
-                           {&(m_leveldata[lev]->cell_type),
+                           {&(m_leveldata[lev]->cell_type_o),
                             &(m_leveldata[lev]->cell_type)},
                            {m_t_old[lev], m_t_new[lev]},
                            0, 0, 1, geom[lev-1], geom[lev],

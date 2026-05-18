@@ -88,6 +88,7 @@ void incflo::WriteCheckPointFile() const
         VisMF::Write(m_leveldata[lev]->density,
                      amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "density"));
 
+    
     #ifdef INCFLO_SIM_CRYO
         if (m_sim_cryo) {
             VisMF::Write(m_leveldata[lev]->cell_type,
@@ -436,9 +437,9 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
 #endif
         }
         else if ( vars[n] == "cell_type" ) {
-    #ifdef INCFLO_SIM_CRYO
+#ifdef INCFLO_SIM_CRYO
             ++ncomp;
-    #endif
+#endif
         }
         else if( vars[n] == "particle_count" ) {
 #ifdef INCFLO_USE_PARTICLES
@@ -713,11 +714,14 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
 #endif
         }
         else if (vars[n] == "cell_type") {
+        
 #ifdef INCFLO_SIM_CRYO
             if (m_sim_cryo) {
                 for (int lev = 0; lev <= finest_level; ++lev) {
                     MultiFab::Copy(mf[lev], m_leveldata[lev]->cell_type, 0, icomp, 1, 0);
                 }
+            pltscaVarsName.push_back("cell_type");
+            ++icomp;
             }
 #endif
         }

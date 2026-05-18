@@ -711,6 +711,7 @@ private:
 
         // cryoflo
         amrex::MultiFab cell_type;
+        amrex::MultiFab cell_type_o;
     };
 
     bool m_use_temperature = false;
@@ -767,6 +768,7 @@ private:
     // cryoflo
     // ***************************************************************
     bool m_sim_cryo = false;
+    int m_cryo_geometry = 0;
 #endif
 
     //
@@ -862,6 +864,8 @@ private:
     amrex::Vector<amrex::MultiFab*> get_tracer_new () noexcept;
     amrex::Vector<amrex::MultiFab*> get_temperature_old () noexcept;
     amrex::Vector<amrex::MultiFab*> get_temperature_new () noexcept;
+    amrex::Vector<amrex::MultiFab*> get_cell_type_old () noexcept;
+    amrex::Vector<amrex::MultiFab*> get_cell_type_new () noexcept;
     amrex::Vector<amrex::MultiFab*> get_mac_phi () noexcept;
     amrex::Vector<amrex::MultiFab*> get_vel_forces () noexcept;
     amrex::Vector<amrex::MultiFab*> get_tra_forces () noexcept;
@@ -893,6 +897,8 @@ private:
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tracer_new_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_temperature_old_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_temperature_new_const () const noexcept;
+    [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_cell_type_old_const () const noexcept;
+    [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_cell_type_new_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_vel_forces_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tra_forces_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tem_forces_const () const noexcept;
@@ -966,6 +972,9 @@ private:
     void copy_from_new_to_old_tracer   (         amrex::IntVect const& ng = amrex::IntVect{0});
     void copy_from_new_to_old_tracer   (int lev, amrex::IntVect const& ng = amrex::IntVect{0});
     void copy_from_new_to_old_temperature (      amrex::IntVect const& ng = amrex::IntVect{0});
+    void copy_from_new_to_old_cell_type (        amrex::IntVect const& ng = amrex::IntVect{0});
+    void copy_from_new_to_old_cell_type (int lev, amrex::IntVect const& ng = amrex::IntVect{0});
+
     //
     void copy_from_old_to_new_velocity (         amrex::IntVect const& ng = amrex::IntVect{0});
     void copy_from_old_to_new_velocity (int lev, amrex::IntVect const& ng = amrex::IntVect{0});
@@ -974,7 +983,8 @@ private:
     void copy_from_old_to_new_tracer   (         amrex::IntVect const& ng = amrex::IntVect{0});
     void copy_from_old_to_new_tracer   (int lev, amrex::IntVect const& ng = amrex::IntVect{0});
     void copy_from_old_to_new_temperature (      amrex::IntVect const& ng = amrex::IntVect{0});
-
+    void copy_from_old_to_new_cell_type (        amrex::IntVect const& ng = amrex::IntVect{0});
+    void copy_from_old_to_new_cell_type (int lev, amrex::IntVect const& ng = amrex::IntVect{0});
     void Advance ();
     bool writeNow () { return writeNow(m_plot_int, m_plot_per_approx, m_plot_per_exact); }
     bool writeNow (int a_plot_int, amrex::Real a_plot_per_approx,
