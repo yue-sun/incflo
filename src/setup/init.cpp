@@ -295,6 +295,12 @@ void incflo::ReadIOParameters()
         m_plotVars.push_back("temperature");
     }
 
+#ifdef INCFLO_SIM_CRYO
+    if (m_sim_cryo) {
+        m_plotVars.push_back("cell_type");
+    }
+#endif
+
     // Helper function to update m_plotVars according to m_plt_* flags
     auto update_plotVars = [this] (std::string const& a_name, bool plot_flag) {
         for (int n = 0; n < m_plotVars.size(); n++) {
@@ -406,6 +412,13 @@ void incflo::ReadIOParameters()
         Warning("amr.plt_* is depreciated. Please use amr.plotVariables");
         update_plotVars("error_mac_p",plt_var);
     }
+
+#ifdef INCFLO_SIM_CRYO
+    if ( pp.query("plt_cell_type", plt_var ) ) {
+        Warning("amr.plt_* is depreciated. Please use amr.plotVariables");
+        update_plotVars("cell_type", plt_var);
+    }
+#endif
 
 #ifdef INCFLO_USE_PARTICLES
     if ( pp.query("plt_particle_count", plt_var ) ) {

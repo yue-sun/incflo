@@ -88,6 +88,13 @@ void incflo::WriteCheckPointFile() const
         VisMF::Write(m_leveldata[lev]->density,
                      amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "density"));
 
+    #ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            VisMF::Write(m_leveldata[lev]->cell_type,
+                 amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "cell_type"));
+        }
+    #endif
+
         if (m_ntrac > 0) {
             VisMF::Write(m_leveldata[lev]->tracer,
                          amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "tracer"));
@@ -223,6 +230,13 @@ void incflo::ReadCheckpointFile()
 
         VisMF::Read(m_leveldata[lev]->density,
                     amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "density"));
+
+#ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            VisMF::Read(m_leveldata[lev]->cell_type,
+                    amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "cell_type"));
+        }
+#endif
 
         if (m_ntrac > 0) {
             VisMF::Read(m_leveldata[lev]->tracer,
@@ -420,6 +434,11 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
             // Cut cell volume fraction
             ++ncomp;
 #endif
+        }
+        else if ( vars[n] == "cell_type" ) {
+    #ifdef INCFLO_SIM_CRYO
+            ++ncomp;
+    #endif
         }
         else if( vars[n] == "particle_count" ) {
 #ifdef INCFLO_USE_PARTICLES
@@ -691,6 +710,15 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
             }
             pltscaVarsName.push_back("vfrac");
             ++icomp;
+#endif
+        }
+        else if (vars[n] == "cell_type") {
+#ifdef INCFLO_SIM_CRYO
+            if (m_sim_cryo) {
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    MultiFab::Copy(mf[lev], m_leveldata[lev]->cell_type, 0, icomp, 1, 0);
+                }
+            }
 #endif
         }
         else {
