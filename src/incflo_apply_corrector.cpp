@@ -156,6 +156,11 @@ void incflo::ApplyCorrector()
     // Update velocity
     // *************************************************************************************
     update_velocity(StepType::Corrector, vel_eta, vel_forces);
+#ifdef INCFLO_SIM_CRYO
+    // Zero solid-cell velocity before projection so the divergence source term
+    // (RHS of the Poisson equation) is consistent with the no-slip
+    cryo_update();
+#endif
 
     // **********************************************************************************************
     // Project velocity field, update pressure

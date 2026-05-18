@@ -71,6 +71,12 @@ void incflo::Advance()
     }
 #endif
 
+#ifdef INCFLO_SIM_CRYO
+    if (m_sim_cryo) {
+        cryo_update();
+    }
+#endif
+
     ApplyPredictor();
 
     if (m_advection_type == "MOL") {
