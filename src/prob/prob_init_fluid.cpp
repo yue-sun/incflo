@@ -196,6 +196,21 @@ void incflo::prob_init_fluid (int lev)
                                domain, dx, problo, probhi);
 
         }
+#ifdef INCFLO_SIM_CRYO
+        else if (3000 == m_probtype)
+        {
+            if (!m_sim_cryo) {
+                amrex::Abort("m_probtype=3000 requires incflo.sim_cryo = 1");
+            }
+            init_cryo_plunging(vbx, gbx,
+                               ld.velocity.array(mfi),
+                               ld.density.array(mfi),
+                               ld.cell_type.array(mfi),
+                               ld.tracer.array(mfi),
+                               ld.temperature.array(mfi),
+                               domain, dx, problo, probhi);
+        }
+#endif
         else
         {
             amrex::Abort("prob_init_fluid: unknown m_probtype");
