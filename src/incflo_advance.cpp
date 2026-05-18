@@ -38,6 +38,11 @@ void incflo::Advance()
     for (int lev = 0; lev <= finest_level; ++lev) {
         fillpatch_velocity(lev, m_t_old[lev], m_leveldata[lev]->velocity_o, ng);
         fillpatch_density(lev, m_t_old[lev], m_leveldata[lev]->density_o, ng);
+#ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            fillpatch_cell_type(lev, m_t_old[lev], m_leveldata[lev]->cell_type, ng);
+        }
+#endif
         if (m_advect_tracer) {
             fillpatch_tracer(lev, m_t_old[lev], m_leveldata[lev]->tracer_o, ng);
         }
@@ -71,6 +76,11 @@ void incflo::Advance()
         for (int lev = 0; lev <= finest_level; ++lev) {
             fillpatch_velocity(lev, m_t_new[lev], m_leveldata[lev]->velocity, ng);
             fillpatch_density(lev, m_t_new[lev], m_leveldata[lev]->density, ng);
+#ifdef INCFLO_SIM_CRYO
+            if (m_sim_cryo) {
+                fillpatch_cell_type(lev, m_t_new[lev], m_leveldata[lev]->cell_type, ng);
+            }
+#endif
             if (m_advect_tracer) {
                 fillpatch_tracer(lev, m_t_new[lev], m_leveldata[lev]->tracer, ng);
             }

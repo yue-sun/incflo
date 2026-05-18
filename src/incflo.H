@@ -708,6 +708,9 @@ private:
         amrex::MultiFab laps_o;
         amrex::MultiFab laps_tem;
         amrex::MultiFab laps_tem_o;
+
+        // cryoflo
+        amrex::MultiFab cell_type;
     };
 
     bool m_use_temperature = false;
@@ -758,6 +761,13 @@ private:
 
     std::unique_ptr<DiffusionTensorOp> m_diffusion_tensor_op;
     std::unique_ptr<DiffusionScalarOp> m_diffusion_scalar_op;
+
+#ifdef INCFLO_SIM_CRYO
+    // ***************************************************************
+    // cryoflo
+    // ***************************************************************
+    bool m_sim_cryo = false;
+#endif
 
     //
     // end of member variables
@@ -935,12 +945,14 @@ private:
     void fillpatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillpatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
     void fillpatch_force (amrex::Real time, amrex::Vector<amrex::MultiFab*> const& force, int ng);
+    void fillpatch_cell_type (int lev, amrex::Real time, amrex::MultiFab& cell_type, int ng);
 
     void fillcoarsepatch_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillcoarsepatch_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);
     void fillcoarsepatch_tracer (int lev, amrex::Real time, amrex::MultiFab& tracer, int ng);
     void fillcoarsepatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillcoarsepatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
+    void fillcoarsepatch_cell_type (int lev, amrex::Real time, amrex::MultiFab& cell_type, int ng);
 
     void fillphysbc_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillphysbc_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);

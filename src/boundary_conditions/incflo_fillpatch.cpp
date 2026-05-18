@@ -78,6 +78,41 @@ void incflo::fillpatch_density (int lev, Real time, MultiFab& density, int ng)
     }
 }
 
+void incflo::fillpatch_cell_type (int lev, Real time, MultiFab& cell_type, int ng)
+{
+    if (lev == 0) {
+        PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > physbc(geom[lev], get_density_bcrec(),
+                                                            IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+        FillPatchSingleLevel(cell_type, IntVect(ng), time,
+                             {&(m_leveldata[lev]->cell_type),
+                              &(m_leveldata[lev]->cell_type)},
+                             {m_t_old[lev], m_t_new[lev]}, 0, 0, 1, geom[lev],
+                             physbc, 0);
+    } else {
+        const auto& bcrec = get_density_bcrec();
+        PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > cphysbc
+            (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+        PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > fphysbc
+            (geom[lev], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+#ifdef AMREX_USE_EB
+        Interpolater* mapper = (EBFactory(0).isAllRegular()) ?
+            (Interpolater*)(&cell_cons_interp) : (Interpolater*)(&eb_cell_cons_interp);
+#else
+        Interpolater* mapper = &cell_cons_interp;
+#endif
+        FillPatchTwoLevels(cell_type, IntVect(ng), time,
+                           {&(m_leveldata[lev-1]->cell_type),
+                            &(m_leveldata[lev-1]->cell_type)},
+                           {m_t_old[lev-1], m_t_new[lev-1]},
+                           {&(m_leveldata[lev]->cell_type),
+                            &(m_leveldata[lev]->cell_type)},
+                           {m_t_old[lev], m_t_new[lev]},
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           cphysbc, 0, fphysbc, 0,
+                           refRatio(lev-1), mapper, bcrec, 0);
+    }
+}
+
 void incflo::fillpatch_tracer (int lev, Real time, MultiFab& tracer, int ng)
 {
     if (m_ntrac <= 0) return;
@@ -244,6 +279,26 @@ void incflo::fillcoarsepatch_density (int lev, Real time, MultiFab& density, int
 #endif
     amrex::InterpFromCoarseLevel(density, IntVect(ng), time,
                                  m_leveldata[lev-1]->density, 0, 0, 1,
+                                 geom[lev-1], geom[lev],
+                                 cphysbc, 0, fphysbc, 0,
+                                 refRatio(lev-1), mapper, bcrec, 0);
+}
+
+void incflo::fillcoarsepatch_cell_type (int lev, Real time, MultiFab& cell_type, int ng)
+{
+    const auto& bcrec = get_density_bcrec();
+    PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > cphysbc
+        (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+    PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > fphysbc
+        (geom[lev], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+#ifdef AMREX_USE_EB
+    Interpolater* mapper = (EBFactory(0).isAllRegular()) ?
+        (Interpolater*)(&cell_cons_interp) : (Interpolater*)(&eb_cell_cons_interp);
+#else
+    Interpolater* mapper = &cell_cons_interp;
+#endif
+    amrex::InterpFromCoarseLevel(cell_type, IntVect(ng), time,
+                                 m_leveldata[lev-1]->cell_type, 0, 0, 1,
                                  geom[lev-1], geom[lev],
                                  cphysbc, 0, fphysbc, 0,
                                  refRatio(lev-1), mapper, bcrec, 0);

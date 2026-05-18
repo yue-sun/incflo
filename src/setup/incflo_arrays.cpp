@@ -47,6 +47,11 @@ incflo::LevelData::LevelData (amrex::BoxArray const& ba,
         temperature_eb.define(ba, dm, 1, my_incflo->nghost_state(), MFInfo(), fact);
     }
 #endif
+#ifdef INCFLO_SIM_CRYO
+    if (my_incflo->m_sim_cryo) {
+        cell_type.define(ba, dm, 1, my_incflo->nghost_state(), MFInfo(), fact);
+    }
+#endif
     if (my_incflo->m_advection_type != "MOL") {
         divtau_o.define(ba, dm, AMREX_SPACEDIM, 0, MFInfo(), fact);
         if (my_incflo->m_advect_tracer) {

@@ -174,6 +174,11 @@ void incflo::ReadParameters ()
         pp.query("mu_T", m_mu_T);
         pp.query("cp", m_cp);
 
+#ifdef INCFLO_SIM_CRYO
+        // Cryoflo
+        pp.query("sim_cryo", m_sim_cryo);
+#endif
+
     } // end prefix incflo
 
     ReadIOParameters();
@@ -460,6 +465,11 @@ void incflo::InitialIterations ()
     for (int lev = 0; lev <= finest_level; ++lev) {
             fillpatch_velocity(lev, m_t_old[lev], m_leveldata[lev]->velocity_o, ng);
         fillpatch_density(lev, m_t_old[lev], m_leveldata[lev]->density_o, ng);
+#ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            fillpatch_cell_type(lev, m_t_old[lev], m_leveldata[lev]->cell_type, ng);
+        }
+#endif
         if (m_advect_tracer) {
             fillpatch_tracer(lev, m_t_old[lev], m_leveldata[lev]->tracer_o, ng);
         }

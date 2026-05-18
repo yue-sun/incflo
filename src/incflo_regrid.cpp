@@ -30,6 +30,7 @@ void incflo::MakeNewLevelFromCoarse (int lev,
         (new LevelData(ba, dm, *new_fact, this));
     fillcoarsepatch_velocity(lev, time, new_leveldata->velocity, 0);
     fillcoarsepatch_density(lev, time, new_leveldata->density, 0);
+    fillcoarsepatch_cell_type(lev, time, new_leveldata->cell_type, 0);
     if (m_ntrac > 0) {
         fillcoarsepatch_tracer(lev, time, new_leveldata->tracer, 0);
     }
@@ -86,6 +87,7 @@ void incflo::RemakeLevel (int lev, Real time, const BoxArray& ba,
         (new LevelData(ba, dm, *new_fact, this));
     fillpatch_velocity(lev, time, new_leveldata->velocity, 0);
     fillpatch_density(lev, time, new_leveldata->density, 0);
+    fillpatch_cell_type(lev, time, new_leveldata->cell_type, 0);
     if (m_ntrac > 0) {
         fillpatch_tracer(lev, time, new_leveldata->tracer, 0);
     }
