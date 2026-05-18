@@ -1,7 +1,7 @@
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            SIMULATION STOP            #
 #.......................................#
-stop_time               =   0.025       # Max (simulated) time to evolve
+stop_time               =   10.0       # Max (simulated) time to evolve
 max_step                =  -1           # Max number of time steps
 steady_state            =   0           # Steady-state solver? 
 
@@ -9,12 +9,12 @@ steady_state            =   0           # Steady-state solver?
 #         TIME STEP COMPUTATION         #
 #.......................................#
 incflo.fixed_dt         =   -1.0        # Use this constant dt if > 0
-incflo.cfl              =   0.45        # CFL factor
+incflo.cfl              =   0.5        # CFL factor
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
 #.......................................#
-amr.plot_per_exact      =   0.005        # Steps between plot files
+amr.plot_per_exact      =   0.1        # Steps between plot files
 amr.check_int           =   1000        # Steps between checkpoint files
 amr.restart             =   ""          # Checkpoint to restart from 
 
@@ -40,23 +40,31 @@ incflo.mu_T             =   0.00014
 #.......................................#
 incflo.probtype         =   3000
 incflo.sim_cryo         =   true
-incflo.cryo_geometry    =   -1
+incflo.cryo_geometry    =   1
+incflo.dt_min           =   1e-3
+incflo.cryo_plunge_vel  =   -1.0  1.0 -1.0  1.0  0.0
+incflo.cryo_plunge_time =    0.0  6.0  7.0  8.0  9.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
 amr.n_cell              =   32 32 32  # Grid cells at coarsest AMRlevel
-amr.max_level           =   1           # Max AMR level in hierarchy 
+amr.max_level           =   2           # Max AMR level in hierarchy 
+amr.ref_ratio           =   2 2 2
 amr.max_grid_size       =   16  16  16  # Max grid size at AMR levels
 amr.blocking_factor     =   8           # Blocking factor for grids
 amr.grid_eff            =   0.7 
 amr.n_error_buf         =   8
 
+incflo.tag_region       =   true
+incflo.tag_region_lo    =   -0.5  -0.5  -5.0
+incflo.tag_region_hi    =    0.5   0.5   0.0
+
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #
 #.......................................#
-geometry.prob_lo        =   -5.0  -5.0  0.  # Lo corner coordinates
-geometry.prob_hi        =    5.0   5.0  10  # Hi corner coordinates
+geometry.prob_lo        =   -5.0  -5.0  -10.  # Lo corner coordinates
+geometry.prob_hi        =    5.0   5.0  0  # Hi corner coordinates
 geometry.is_periodic    =   0   0   0   # Periodicity x y z (0/1)
 
 # Boundary conditions
@@ -94,4 +102,4 @@ nodal_proj.verbose      =   0          # Nodal Projector
 scalar_diffusion.verbose  =   0         # Scalar Diffusion 
 tensor_diffusion.verbose  =   0         # Tensor Diffusion
 
-amr.plotVariables       =   velx vely velz density tracer temperature cell_type p
+amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p
