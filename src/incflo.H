@@ -426,6 +426,7 @@ private:
     amrex::Real m_fixed_dt = amrex::Real(-1.);
     amrex::Real m_init_shrink = amrex::Real(0.1);
     amrex::Real m_dt_change_max = amrex::Real(1.1);
+    amrex::Real m_dt_min = amrex::Real(0.0); // Minimum dt for implicit update
 
     // Initial projection / iterations
     bool m_do_initial_proj          = true;
@@ -769,6 +770,8 @@ private:
     // ***************************************************************
     bool m_sim_cryo = false;
     int m_cryo_geometry = 0;
+    amrex::Vector<amrex::Real> m_cryo_plunge_vel;
+    amrex::Vector<amrex::Real> m_cryo_plunge_time;
 #endif
 
     //
