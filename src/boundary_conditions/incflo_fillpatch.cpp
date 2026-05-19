@@ -78,17 +78,57 @@ void incflo::fillpatch_density (int lev, Real time, MultiFab& density, int ng)
     }
 }
 
-void incflo::fillpatch_cell_type (int lev, Real time, MultiFab& cell_type, int ng)
+void incflo::fillpatch_cell_type (int lev, Real time, iMultiFab& cell_type, int ng)
 {
+    MultiFab cell_type_real(cell_type.boxArray(), cell_type.DistributionMap(), 1, ng);
+    MultiFab cell_type_old_real(m_leveldata[lev]->cell_type_o.boxArray(),
+                                m_leveldata[lev]->cell_type_o.DistributionMap(),
+                                1, m_leveldata[lev]->cell_type_o.nGrow());
+    MultiFab cell_type_new_real(m_leveldata[lev]->cell_type.boxArray(),
+                                m_leveldata[lev]->cell_type.DistributionMap(),
+                                1, m_leveldata[lev]->cell_type.nGrow());
+
+    for (MFIter mfi(cell_type_old_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box const& bx = mfi.growntilebox();
+        Array4<Real> const& old_arr = cell_type_old_real.array(mfi);
+        Array4<Real> const& new_arr = cell_type_new_real.array(mfi);
+        Array4<int const> const& old_src = m_leveldata[lev]->cell_type_o.const_array(mfi);
+        Array4<int const> const& new_src = m_leveldata[lev]->cell_type.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            old_arr(i,j,k) = static_cast<Real>(old_src(i,j,k));
+            new_arr(i,j,k) = static_cast<Real>(new_src(i,j,k));
+        });
+    }
+
     if (lev == 0) {
         PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > physbc(geom[lev], get_density_bcrec(),
                                                             IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
-        FillPatchSingleLevel(cell_type, IntVect(ng), time,
-                             {&(m_leveldata[lev]->cell_type_o),
-                              &(m_leveldata[lev]->cell_type)},
+        FillPatchSingleLevel(cell_type_real, IntVect(ng), time,
+                             {&cell_type_old_real, &cell_type_new_real},
                              {m_t_old[lev], m_t_new[lev]}, 0, 0, 1, geom[lev],
                              physbc, 0);
     } else {
+        MultiFab cell_type_old_coarse_real(m_leveldata[lev-1]->cell_type_o.boxArray(),
+                                           m_leveldata[lev-1]->cell_type_o.DistributionMap(),
+                                           1, m_leveldata[lev-1]->cell_type_o.nGrow());
+        MultiFab cell_type_new_coarse_real(m_leveldata[lev-1]->cell_type.boxArray(),
+                                           m_leveldata[lev-1]->cell_type.DistributionMap(),
+                                           1, m_leveldata[lev-1]->cell_type.nGrow());
+
+        for (MFIter mfi(cell_type_old_coarse_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box const& bx = mfi.growntilebox();
+            Array4<Real> const& old_arr = cell_type_old_coarse_real.array(mfi);
+            Array4<Real> const& new_arr = cell_type_new_coarse_real.array(mfi);
+            Array4<int const> const& old_src = m_leveldata[lev-1]->cell_type_o.const_array(mfi);
+            Array4<int const> const& new_src = m_leveldata[lev-1]->cell_type.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                old_arr(i,j,k) = static_cast<Real>(old_src(i,j,k));
+                new_arr(i,j,k) = static_cast<Real>(new_src(i,j,k));
+            });
+        }
+
         const auto& bcrec = get_density_bcrec();
         PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > cphysbc
             (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
@@ -100,16 +140,25 @@ void incflo::fillpatch_cell_type (int lev, Real time, MultiFab& cell_type, int n
 #else
         Interpolater* mapper = &cell_cons_interp;
 #endif
-        FillPatchTwoLevels(cell_type, IntVect(ng), time,
-                           {&(m_leveldata[lev-1]->cell_type_o),
-                            &(m_leveldata[lev-1]->cell_type)},
+        FillPatchTwoLevels(cell_type_real, IntVect(ng), time,
+                           {&cell_type_old_coarse_real, &cell_type_new_coarse_real},
                            {m_t_old[lev-1], m_t_new[lev-1]},
-                           {&(m_leveldata[lev]->cell_type_o),
-                            &(m_leveldata[lev]->cell_type)},
+                           {&cell_type_old_real, &cell_type_new_real},
                            {m_t_old[lev], m_t_new[lev]},
                            0, 0, 1, geom[lev-1], geom[lev],
                            cphysbc, 0, fphysbc, 0,
                            refRatio(lev-1), mapper, bcrec, 0);
+    }
+
+    for (MFIter mfi(cell_type_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box const& bx = mfi.tilebox();
+        Array4<Real const> const& src = cell_type_real.const_array(mfi);
+        Array4<int> const& dst = cell_type.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real const v = src(i,j,k);
+            dst(i,j,k) = static_cast<int>(v + (v >= Real(0.0) ? Real(0.5) : Real(-0.5)));
+        });
     }
 }
 
@@ -284,8 +333,23 @@ void incflo::fillcoarsepatch_density (int lev, Real time, MultiFab& density, int
                                  refRatio(lev-1), mapper, bcrec, 0);
 }
 
-void incflo::fillcoarsepatch_cell_type (int lev, Real time, MultiFab& cell_type, int ng)
+void incflo::fillcoarsepatch_cell_type (int lev, Real time, iMultiFab& cell_type, int ng)
 {
+    MultiFab cell_type_real(cell_type.boxArray(), cell_type.DistributionMap(), 1, ng);
+    MultiFab cell_type_coarse_real(m_leveldata[lev-1]->cell_type.boxArray(),
+                                   m_leveldata[lev-1]->cell_type.DistributionMap(),
+                                   1, m_leveldata[lev-1]->cell_type.nGrow());
+
+    for (MFIter mfi(cell_type_coarse_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box const& bx = mfi.growntilebox();
+        Array4<Real> const& dst = cell_type_coarse_real.array(mfi);
+        Array4<int const> const& src = m_leveldata[lev-1]->cell_type.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            dst(i,j,k) = static_cast<Real>(src(i,j,k));
+        });
+    }
+
     const auto& bcrec = get_density_bcrec();
     PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > cphysbc
         (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
@@ -297,11 +361,22 @@ void incflo::fillcoarsepatch_cell_type (int lev, Real time, MultiFab& cell_type,
 #else
     Interpolater* mapper = &cell_cons_interp;
 #endif
-    amrex::InterpFromCoarseLevel(cell_type, IntVect(ng), time,
-                                 m_leveldata[lev-1]->cell_type, 0, 0, 1,
+    amrex::InterpFromCoarseLevel(cell_type_real, IntVect(ng), time,
+                                 cell_type_coarse_real, 0, 0, 1,
                                  geom[lev-1], geom[lev],
                                  cphysbc, 0, fphysbc, 0,
                                  refRatio(lev-1), mapper, bcrec, 0);
+
+    for (MFIter mfi(cell_type_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box const& bx = mfi.tilebox();
+        Array4<Real const> const& src = cell_type_real.const_array(mfi);
+        Array4<int> const& dst = cell_type.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real const v = src(i,j,k);
+            dst(i,j,k) = static_cast<int>(v + (v >= Real(0.0) ? Real(0.5) : Real(-0.5)));
+        });
+    }
 }
 
 void incflo::fillcoarsepatch_tracer (int lev, Real time, MultiFab& tracer, int ng)

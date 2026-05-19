@@ -711,8 +711,8 @@ private:
         amrex::MultiFab laps_tem_o;
 
         // cryoflo
-        amrex::MultiFab cell_type;
-        amrex::MultiFab cell_type_o;
+        amrex::iMultiFab cell_type;
+        amrex::iMultiFab cell_type_o;
     };
 
     bool m_use_temperature = false;
@@ -772,6 +772,8 @@ private:
     int m_cryo_geometry = 0;
     amrex::Vector<amrex::Real> m_cryo_plunge_vel;
     amrex::Vector<amrex::Real> m_cryo_plunge_time;
+    amrex::Real m_cryo_temp_entry = 0.;
+    amrex::Real m_cryo_temp_eth = 0.;
 #endif
 
     //
@@ -867,8 +869,8 @@ private:
     amrex::Vector<amrex::MultiFab*> get_tracer_new () noexcept;
     amrex::Vector<amrex::MultiFab*> get_temperature_old () noexcept;
     amrex::Vector<amrex::MultiFab*> get_temperature_new () noexcept;
-    amrex::Vector<amrex::MultiFab*> get_cell_type_old () noexcept;
-    amrex::Vector<amrex::MultiFab*> get_cell_type_new () noexcept;
+    amrex::Vector<amrex::iMultiFab*> get_cell_type_old () noexcept;
+    amrex::Vector<amrex::iMultiFab*> get_cell_type_new () noexcept;
     amrex::Vector<amrex::MultiFab*> get_mac_phi () noexcept;
     amrex::Vector<amrex::MultiFab*> get_vel_forces () noexcept;
     amrex::Vector<amrex::MultiFab*> get_tra_forces () noexcept;
@@ -900,8 +902,8 @@ private:
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tracer_new_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_temperature_old_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_temperature_new_const () const noexcept;
-    [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_cell_type_old_const () const noexcept;
-    [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_cell_type_new_const () const noexcept;
+    [[nodiscard]] amrex::Vector<amrex::iMultiFab const*> get_cell_type_old_const () const noexcept;
+    [[nodiscard]] amrex::Vector<amrex::iMultiFab const*> get_cell_type_new_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_vel_forces_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tra_forces_const () const noexcept;
     [[nodiscard]] amrex::Vector<amrex::MultiFab const*> get_tem_forces_const () const noexcept;
@@ -954,14 +956,14 @@ private:
     void fillpatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillpatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
     void fillpatch_force (amrex::Real time, amrex::Vector<amrex::MultiFab*> const& force, int ng);
-    void fillpatch_cell_type (int lev, amrex::Real time, amrex::MultiFab& cell_type, int ng);
+    void fillpatch_cell_type (int lev, amrex::Real time, amrex::iMultiFab& cell_type, int ng);
 
     void fillcoarsepatch_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillcoarsepatch_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);
     void fillcoarsepatch_tracer (int lev, amrex::Real time, amrex::MultiFab& tracer, int ng);
     void fillcoarsepatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillcoarsepatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
-    void fillcoarsepatch_cell_type (int lev, amrex::Real time, amrex::MultiFab& cell_type, int ng);
+    void fillcoarsepatch_cell_type (int lev, amrex::Real time, amrex::iMultiFab& cell_type, int ng);
 
     void fillphysbc_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillphysbc_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);

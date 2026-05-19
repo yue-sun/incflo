@@ -44,21 +44,27 @@ incflo.cryo_geometry    =   1
 incflo.dt_min           =   1e-3
 incflo.cryo_plunge_vel  =   -1.0  1.0 -1.0  1.0  0.0
 incflo.cryo_plunge_time =    0.0  6.0  7.0  8.0  9.0
+incflo.cryo_temp_entry  =   270.0
+incflo.cryo_temp_eth    =   90.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
-amr.n_cell              =   32 32 32  # Grid cells at coarsest AMRlevel
+amr.n_cell              =   16 16 16  # Grid cells at coarsest AMRlevel
 amr.max_level           =   2           # Max AMR level in hierarchy 
-amr.ref_ratio           =   2 2 2
+amr.ref_ratio           =   4 4
 amr.max_grid_size       =   16  16  16  # Max grid size at AMR levels
 amr.blocking_factor     =   8           # Blocking factor for grids
 amr.grid_eff            =   0.7 
 amr.n_error_buf         =   8
 
 incflo.tag_region       =   true
-incflo.tag_region_lo    =   -0.5  -0.5  -5.0
+incflo.tag_region_time  =   0.03
+incflo.tag_region_lo    =   -0.5  -0.5  -0.5
 incflo.tag_region_hi    =    0.5   0.5   0.0
+amr.regrid_int          =   1
+incflo.tag_cell_type    =   true
+incflo.gradtemperr      =   8. 4. 1.
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #

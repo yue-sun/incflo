@@ -28,31 +28,35 @@ void incflo::cryo_update()
 
         for (MFIter mfi(ld.density, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box const& bx = mfi.tilebox();
-            Array4<Real> const& vel = ld.velocity.array(mfi);
-            Array4<Real> const& cell_type = ld.cell_type.array(mfi);
-            
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real x = (i+0.5)*dx[0] - 0.5*(probhi[0] - problo[0]);
-                Real y = (j+0.5)*dx[1] - 0.5*(probhi[1] - problo[1]);
-                Real z = (k+0.5)*dx[2] -     (probhi[2] - problo[2]);
+            Box const &bx = mfi.tilebox();
+            Array4<Real> const &vel = ld.velocity.array(mfi);
+            Array4<int> const &cell_type = ld.cell_type.array(mfi);
+            Array4<Real> const &temperature = ld.temperature.array(mfi);
 
-                Real &cell_type_ijk = cell_type(i,j,k);
-                Real &velx = vel(i,j,k,0);
-                Real &vely = vel(i,j,k,1);
-                Real &velz = vel(i,j,k,2);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                            Real x = (i + 0.5) * dx[0] - 0.5 * (probhi[0] - problo[0]);
+                            Real y = (j + 0.5) * dx[1] - 0.5 * (probhi[1] - problo[1]);
+                            Real z = (k + 0.5) * dx[2] - (probhi[2] - problo[2]);
 
-                // Set geometry and velocity
-                cryo_set_geom_velocity(i, j, k, x, y, z,
-                                       velx, vely, velz,
-                                       cell_type_ijk,
-                                       m_cur_time, dx, problo, probhi);
-                // Impose top boundary condition for temperature/heat
-                // TODO: cryo_set_top_bc
-                // Set thermal properties
-                // TODO: cryo_set_thermal_properties(i, j, k, x, y, z, cell_type_ijk, m_cur_time, dx, problo, probhi);
-            });
+                            int &cell_type_ijk = cell_type(i, j, k);
+                            Real &velx = vel(i, j, k, 0);
+                            Real &vely = vel(i, j, k, 1);
+                            Real &velz = vel(i, j, k, 2);
+                            Real &temperature_ijk = temperature(i, j, k);
+
+                            // Set geometry and velocity
+                            cryo_set_geom_velocity(i, j, k, x, y, z,
+                                                   velx, vely, velz,
+                                                   cell_type_ijk,
+                                                   m_cur_time, dx, problo, probhi);
+                            // Set thermal properties and top temperature B.C.
+                            cryo_set_thermal(i, j, k, x, y, z,
+                                             cell_type_ijk,
+                                             m_cur_time, dx, problo, probhi);
+                            // Set top boundary condition for temperature/heat
+                            cryo_set_temp_top_bc(z, temperature_ijk, cell_type_ijk, dx, probhi);
+                        });
         }
     }
 #endif
@@ -61,7 +65,7 @@ void incflo::cryo_update()
 void incflo::cryo_set_geom_velocity(int i, int j, int k,
                                     Real x, Real y, Real z,
                                     Real &velx, Real &vely, Real &velz,
-                                    Real &cell_type_ijk,
+                                    int &cell_type_ijk,
                                     Real time,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
@@ -129,14 +133,14 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         Real geom_sphere = x * x + y * y + (z + zoff) * (z + zoff);
         if (geom_sphere < Rdebug * Rdebug)
         {
-            cell_type_ijk = Real(-6.0);
+            cell_type_ijk = -6;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
         }
         else
         {
-            cell_type_ijk = Real(-1.0);
+            cell_type_ijk = -1;
         }
     }
     else if (m_cryo_geometry == 1)
@@ -152,15 +156,53 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         if (geom_sap_disk < R_sap_disk * R_sap_disk &&
             geom_sap_disk_thickness < w_sap_disk)
         {
-            cell_type_ijk = Real(-4.0);
+            cell_type_ijk = -4;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
         }
         else
         {
-            cell_type_ijk = Real(-1.0);
+            cell_type_ijk = -1;
         }
+    }
+#endif
+}
+
+void incflo::cryo_set_thermal(int i, int j, int k,
+                              Real x, Real y, Real z,
+                              int cell_type_ijk,
+                              Real time,
+                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
+                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
+                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
+{
+    BL_PROFILE("incflo::cryo_set_thermal");
+
+#if (AMREX_SPACEDIM == 2)
+    amrex::Abort("cryo_set_thermal: not implemented in 2D");
+
+#elif (AMREX_SPACEDIM == 3)
+    //
+    return;
+#endif
+}
+
+void incflo::cryo_set_temp_top_bc(Real z, Real &temperature_ijk, int cell_type_ijk,
+                                  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
+                                  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
+{
+    BL_PROFILE("incflo::cryo_set_temp_top_bc");
+
+#if (AMREX_SPACEDIM == 2)
+    amrex::Abort("cryo_set_temp_top_bc: not implemented in 2D");
+
+#elif (AMREX_SPACEDIM == 3)
+    // TODO: add a check on the m_cryo_geometry type
+    if (z >= probhi[2] - dx[2] && cell_type_ijk != -1)
+    {
+        // Set top temperature boundary condition for solid cells
+        temperature_ijk = m_cryo_temp_entry;
     }
 #endif
 }

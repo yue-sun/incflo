@@ -136,7 +136,7 @@
     void init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& gbx,
                              amrex::Array4<amrex::Real> const& vel,
                              amrex::Array4<amrex::Real> const& density,
-                             amrex::Array4<amrex::Real> const& cell_type,
+                             amrex::Array4<int> const& cell_type,
                              amrex::Array4<amrex::Real> const& tracer,
                              amrex::Array4<amrex::Real> const& temperature,
                              amrex::Box const& domain,

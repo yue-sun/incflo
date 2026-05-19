@@ -91,7 +91,19 @@ void incflo::WriteCheckPointFile() const
     
     #ifdef INCFLO_SIM_CRYO
         if (m_sim_cryo) {
-            VisMF::Write(m_leveldata[lev]->cell_type,
+            MultiFab cell_type_real(m_leveldata[lev]->cell_type.boxArray(),
+                                    m_leveldata[lev]->cell_type.DistributionMap(),
+                                    1, 0);
+            for (MFIter mfi(cell_type_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box const& bx = mfi.tilebox();
+                Array4<Real> const& dst = cell_type_real.array(mfi);
+                Array4<int const> const& src = m_leveldata[lev]->cell_type.const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst(i,j,k) = static_cast<Real>(src(i,j,k));
+                });
+            }
+            VisMF::Write(cell_type_real,
                  amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "cell_type"));
         }
     #endif
@@ -234,8 +246,20 @@ void incflo::ReadCheckpointFile()
 
 #ifdef INCFLO_SIM_CRYO
         if (m_sim_cryo) {
-            VisMF::Read(m_leveldata[lev]->cell_type,
+            MultiFab cell_type_real(m_leveldata[lev]->cell_type.boxArray(),
+                                    m_leveldata[lev]->cell_type.DistributionMap(),
+                                    1, 0);
+            VisMF::Read(cell_type_real,
                     amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "cell_type"));
+            for (MFIter mfi(cell_type_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box const& bx = mfi.tilebox();
+                Array4<Real const> const& src = cell_type_real.const_array(mfi);
+                Array4<int> const& dst = m_leveldata[lev]->cell_type.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst(i,j,k) = static_cast<int>(src(i,j,k));
+                });
+            }
         }
 #endif
 
@@ -718,7 +742,15 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
 #ifdef INCFLO_SIM_CRYO
             if (m_sim_cryo) {
                 for (int lev = 0; lev <= finest_level; ++lev) {
-                    MultiFab::Copy(mf[lev], m_leveldata[lev]->cell_type, 0, icomp, 1, 0);
+                    for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        Box const& bx = mfi.tilebox();
+                        Array4<Real> const& mf_arr = mf[lev].array(mfi);
+                        Array4<int const> const& cell_type_arr = m_leveldata[lev]->cell_type.const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            mf_arr(i,j,k,icomp) = static_cast<Real>(cell_type_arr(i,j,k));
+                        });
+                    }
                 }
             pltscaVarsName.push_back("cell_type");
             ++icomp;

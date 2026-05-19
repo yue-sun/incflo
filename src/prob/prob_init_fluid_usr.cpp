@@ -5,7 +5,7 @@ using namespace amrex;
 void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*/,
 								 amrex::Array4<amrex::Real> const& vel,
 								 amrex::Array4<amrex::Real> const& density,
-								 amrex::Array4<amrex::Real> const& cell_type,
+                                 amrex::Array4<int> const& cell_type,
 								 amrex::Array4<amrex::Real> const& tracer,
 								 amrex::Array4<amrex::Real> const& temperature,
 								 amrex::Box const& /*domain*/,
@@ -26,12 +26,12 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         Real &velx = vel(i,j,k,0);
         Real &vely = vel(i,j,k,1);
         Real &velz = vel(i,j,k,2);
-        Real &cell_type_ijk = cell_type(i,j,k);
+        int &cell_type_ijk = cell_type(i,j,k);
 
         // Initialize density, velocity, and cell_type for each cell
         density(i,j,k) = Real(1.0);
         velx = vely = velz = Real(0.0);
-        cell_type_ijk = Real(-1.0);
+        cell_type_ijk = -1;
 
         // Update velocity and cell_type for each cell
         // based on the prescribed velocity of the plunging protocol
@@ -39,6 +39,16 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         cryo_set_geom_velocity(i, j, k, x, y, z,
                             velx, vely, velz, cell_type_ijk,
                             m_cur_time, dx, problo, probhi);
+        cryo_set_thermal(i, j, k, x, y, z, cell_type_ijk, m_cur_time, dx, problo, probhi);
+
+        // Set initial temperature
+        if (cell_type_ijk == -1) {
+            // -1: liquid ethane (fluid)
+            temperature(i,j,k) = m_cryo_temp_eth;
+        } else {
+            // All other cell types for solids
+            temperature(i,j,k) = m_cryo_temp_entry;
+        }
 #endif
 
         // Update thermal properties for each cell

@@ -180,6 +180,7 @@ void incflo::ReadParameters ()
         if (m_sim_cryo) {
             pp.query("cryo_geometry", m_cryo_geometry);
             pp.query("dt_min", m_dt_min);
+            // Parse plunging protocol
             int n_plunge_vel = pp.countval("cryo_plunge_vel");
             int n_plunge_time = pp.countval("cryo_plunge_time");
             m_cryo_plunge_vel.resize(n_plunge_vel);
@@ -189,6 +190,8 @@ void incflo::ReadParameters ()
             if (n_plunge_vel != n_plunge_time) {
                 amrex::Abort("cryo_plunge_vel and cryo_plunge_time must have the same number of entries");
             }
+            pp.query("cryo_temp_entry", m_cryo_temp_entry);
+            pp.query("cryo_temp_eth", m_cryo_temp_eth);
         }
 #endif
 
@@ -692,7 +695,11 @@ incflo::InitialRedistribution ()
      #ifdef INCFLO_SIM_CRYO
          if (m_sim_cryo) {
             ld.cell_type.FillBoundary(geom[lev].periodicity());
-            MultiFab::Copy(ld.cell_type_o, ld.cell_type, 0, 0, 1, ld.cell_type.nGrow());
+            ld.cell_type_o.ParallelCopy(ld.cell_type,
+                                        0, 0, 1,
+                                        ld.cell_type.nGrowVect(),
+                                        ld.cell_type_o.nGrowVect(),
+                                        geom[lev].periodicity());
             fillpatch_cell_type(lev, m_t_new[lev], ld.cell_type_o, 3);
         }
      #endif

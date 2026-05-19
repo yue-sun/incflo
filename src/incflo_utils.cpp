@@ -138,9 +138,9 @@ Vector<MultiFab*> incflo::get_temperature_new () noexcept
     return r;
 }
 
-Vector<MultiFab*> incflo::get_cell_type_old () noexcept
+Vector<iMultiFab*> incflo::get_cell_type_old () noexcept
 {
-    Vector<MultiFab*> r;
+    Vector<iMultiFab*> r;
     r.reserve(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         r.push_back(&(m_leveldata[lev]->cell_type_o));
@@ -148,9 +148,9 @@ Vector<MultiFab*> incflo::get_cell_type_old () noexcept
     return r;
 }
 
-Vector<MultiFab*> incflo::get_cell_type_new () noexcept
+Vector<iMultiFab*> incflo::get_cell_type_new () noexcept
 {
-    Vector<MultiFab*> r;
+    Vector<iMultiFab*> r;
     r.reserve(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         r.push_back(&(m_leveldata[lev]->cell_type));
@@ -410,9 +410,9 @@ Vector<MultiFab const*> incflo::get_temperature_new_const () const noexcept
     return r;
 }
 
-Vector<MultiFab const*> incflo::get_cell_type_old_const () const noexcept
+Vector<iMultiFab const*> incflo::get_cell_type_old_const () const noexcept
 {
-    Vector<MultiFab const*> r;
+    Vector<iMultiFab const*> r;
     r.reserve(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         r.push_back(&(m_leveldata[lev]->cell_type_o));
@@ -420,9 +420,9 @@ Vector<MultiFab const*> incflo::get_cell_type_old_const () const noexcept
     return r;
 }
 
-Vector<MultiFab const*> incflo::get_cell_type_new_const () const noexcept
+Vector<iMultiFab const*> incflo::get_cell_type_new_const () const noexcept
 {
-    Vector<MultiFab const*> r;
+    Vector<iMultiFab const*> r;
     r.reserve(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         r.push_back(&(m_leveldata[lev]->cell_type));
@@ -531,15 +531,17 @@ void incflo::copy_from_old_to_new_temperature (IntVect const& ng)
 void incflo::copy_from_new_to_old_cell_type (IntVect const& ng)
 {
     for (int lev = 0; lev <= finest_level; ++lev) {
-        MultiFab::Copy(m_leveldata[lev]->cell_type_o,
-                       m_leveldata[lev]->cell_type, 0, 0, 1, ng);
+        m_leveldata[lev]->cell_type_o.ParallelCopy(m_leveldata[lev]->cell_type,
+                                                   0, 0, 1, ng, ng,
+                                                   geom[lev].periodicity());
     }
 }
 
 void incflo::copy_from_old_to_new_cell_type (IntVect const& ng)
 {
     for (int lev = 0; lev <= finest_level; ++lev) {
-        MultiFab::Copy(m_leveldata[lev]->cell_type,
-                       m_leveldata[lev]->cell_type_o, 0, 0, 1, ng);
+        m_leveldata[lev]->cell_type.ParallelCopy(m_leveldata[lev]->cell_type_o,
+                                                 0, 0, 1, ng, ng,
+                                                 geom[lev].periodicity());
     }
 }

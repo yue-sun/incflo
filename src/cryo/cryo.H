@@ -71,17 +71,25 @@ void cryo_init();
 
 void cryo_update();
 
-void cryo_set_top_bc();
-
 void cryo_set_geom_velocity(int i, int j, int k,
                             amrex::Real x, amrex::Real y, amrex::Real z,
                             amrex::Real &velx, amrex::Real &vely, amrex::Real &velz,
-                            amrex::Real &cell_type_ijk, amrex::Real time,
+                            int &cell_type_ijk, amrex::Real time,
                             amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                             amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
-                            amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi
+                            amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi);
 
-);
+void cryo_set_temp_top_bc(amrex::Real z, amrex::Real &temperature_ijk,
+                          int cell_type_ijk,
+                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
+                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi);
+
+void cryo_set_thermal(int i, int j, int k,
+                      amrex::Real x, amrex::Real y, amrex::Real z,
+                      int cell_type_ijk, amrex::Real time,
+                      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
+                      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
+                      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi);
 
 void cryo_load_emgrid();
 
