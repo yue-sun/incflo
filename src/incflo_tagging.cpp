@@ -15,6 +15,12 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     static bool first = true;
     static Vector<Real> rhoerr_v, gradrhoerr_v;
 
+#ifdef INCFLO_SIM_CRYO
+    static Real tag_region_time = 0.0;
+    bool tag_cell_type = false;
+    static Vector<Real> temperr_v, gradtemperr_v;
+#endif
+
     static bool tag_region;
 
     if (first) {
@@ -41,6 +47,21 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         pp.queryarr("tag_region_lo", tag_region_lo);
         pp.queryarr("tag_region_hi", tag_region_hi);
+
+#ifdef INCFLO_SIM_CRYO
+        pp.query("tag_region_time", tag_region_time);
+        pp.query("tag_cell_type", tag_cell_type);
+        pp.queryarr("temperr", temperr_v);
+        if (!temperr_v.empty()) {
+            Real last = temperr_v.back();
+            temperr_v.resize(max_level+1, last);
+        }
+        pp.queryarr("gradtemperr", gradtemperr_v);
+        if (!gradtemperr_v.empty()) {
+            Real last = gradtemperr_v.back();
+            gradtemperr_v.resize(max_level+1, last);
+        }
+#endif
     }
 
     const auto   tagval = TagBox::SET;
@@ -51,6 +72,14 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     if (tag_gradrho) {
         fillpatch_density(levc, time, m_leveldata[levc]->density, 1);
     }
+
+#ifdef INCFLO_SIM_CRYO
+    bool tag_temp = levc < temperr_v.size();
+    bool tag_gradtemp = levc < gradtemperr_v.size();
+    if (tag_gradtemp) {
+        fillpatch_temperature(levc, time, m_leveldata[levc]->temperature, 1);
+    }
+#endif
 
     AMREX_D_TERM(const Real l_dx = geom[levc].CellSize(0);,
                  const Real l_dy = geom[levc].CellSize(1);,
@@ -94,8 +123,14 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             });
         }
 
-        if (tag_region) {
-
+        bool do_tag_region = tag_region;
+#ifdef INCFLO_SIM_CRYO
+        // In cryo startup, use tag_region only for the first few steps.
+        if (m_sim_cryo) {
+            do_tag_region = do_tag_region && (m_cur_time < tag_region_time);
+        }
+#endif
+        if (do_tag_region) {
             Real xlo = tag_region_lo[0];
             Real ylo = tag_region_lo[1];
             Real xhi = tag_region_hi[0];
@@ -134,6 +169,51 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             });
 #endif
         }
+    
+#ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            // Tag based on cell_type
+            auto const& cell_type = m_leveldata[levc]->cell_type.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (cell_type(i,j,k) != -1) { // tag cut cells
+                    tag(i,j,k) = tagval;
+                }
+            });
+
+            // Tag based on temperature and its gradient
+            if (tag_temp || tag_gradtemp)
+            {
+                Array4<Real const> const& temp = m_leveldata[levc]->temperature.const_array(mfi);
+                Real temperr = tag_temp ? temperr_v[levc]: std::numeric_limits<Real>::max();
+                Real gradtemperr = tag_gradtemp ? gradtemperr_v[levc] : std::numeric_limits<Real>::max();
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (tag_temp && temp(i,j,k) > temperr) {
+                        tag(i,j,k) = tagval;
+                    }
+                    if (tag_gradtemp) {
+                        Real ax = amrex::Math::abs(temp(i+1,j,k) - temp(i,j,k));
+                        Real ay = amrex::Math::abs(temp(i,j+1,k) - temp(i,j,k));
+                        ax = amrex::max(ax,amrex::Math::abs(temp(i,j,k) - temp(i-1,j,k)));
+                        ay = amrex::max(ay,amrex::Math::abs(temp(i,j,k) - temp(i,j-1,k)));
+#if (AMREX_SPACEDIM == 2)
+                        if (amrex::max(ax,ay) >= gradtemperr) {
+                            tag(i,j,k) = tagval;
+                        }
+#elif (AMREX_SPACEDIM == 3)
+                        Real az = amrex::Math::abs(temp(i,j,k+1) - temp(i,j,k));
+                        az = amrex::max(az,amrex::Math::abs(temp(i,j,k) - temp(i,j,k-1)));
+                        if (amrex::max(ax,ay,az) >= gradtemperr) {
+                            tag(i,j,k) = tagval;
+                        }
+#endif
+                    }
+                });
+            }
+        }        
+#endif
+
     } // mfi
 
 #ifdef AMREX_USE_EB
