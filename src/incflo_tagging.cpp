@@ -19,6 +19,7 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     static Real tag_region_time = 0.0;
     bool tag_cell_type = false;
     static Vector<Real> temperr_v, gradtemperr_v;
+    static Vector<Real> speederr_v, gradspeederr_v;
 #endif
 
     static bool tag_region;
@@ -61,6 +62,16 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             Real last = gradtemperr_v.back();
             gradtemperr_v.resize(max_level+1, last);
         }
+        pp.queryarr("speederr", speederr_v);
+        if (!speederr_v.empty()) {
+            Real last = speederr_v.back();
+            speederr_v.resize(max_level+1, last);
+        }
+        pp.queryarr("gradspeederr", gradspeederr_v);
+        if (!gradspeederr_v.empty()) {
+            Real last = gradspeederr_v.back();
+            gradspeederr_v.resize(max_level+1, last);
+        }
 #endif
     }
 
@@ -78,6 +89,11 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     bool tag_gradtemp = levc < gradtemperr_v.size();
     if (tag_gradtemp) {
         fillpatch_temperature(levc, time, m_leveldata[levc]->temperature, 1);
+    }
+    bool tag_speed = levc < speederr_v.size();
+    bool tag_gradspeed = levc < gradspeederr_v.size();
+    if (tag_gradspeed) {
+        fillpatch_velocity(levc, time, m_leveldata[levc]->velocity, 1);
     }
 #endif
 
@@ -173,13 +189,15 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #ifdef INCFLO_SIM_CRYO
         if (m_sim_cryo) {
             // Tag based on cell_type
-            auto const& cell_type = m_leveldata[levc]->cell_type.const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (cell_type(i,j,k) != -1) { // tag cut cells
-                    tag(i,j,k) = tagval;
-                }
-            });
+            if (tag_cell_type) {
+                auto const& cell_type = m_leveldata[levc]->cell_type.const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (cell_type(i,j,k) != -1) { // tag cut cells
+                        tag(i,j,k) = tagval;
+                    }
+                });
+            }
 
             // Tag based on temperature and its gradient
             if (tag_temp || tag_gradtemp)
@@ -211,7 +229,50 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     }
                 });
             }
-        }        
+
+            // Tag based on speed and its gradient
+            if (tag_speed || tag_gradspeed)
+            {                
+                Array4<Real const> const& vel = m_leveldata[levc]->velocity.const_array(mfi);
+                Real speederr = tag_speed ? speederr_v[levc]: std::numeric_limits<Real>::max();
+                Real gradspeederr = tag_gradspeed ? gradspeederr_v[levc] : std::numeric_limits<Real>::max();
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real u = vel(i,j,k,0);
+                    Real v = vel(i,j,k,1);
+#if (AMREX_SPACEDIM == 3)
+                    Real w = vel(i,j,k,2);
+#else
+                    Real w = 0.0;
+#endif
+                    Real speed = std::sqrt(u*u + v*v + w*w);
+                    if (tag_speed && speed > speederr) {
+                        tag(i,j,k) = tagval;
+                    }
+                    if (tag_gradspeed) {
+                        Real ux = amrex::Math::abs(vel(i+1,j,k,0) - vel(i,j,k,0));
+                        Real uy = amrex::Math::abs(vel(i,j+1,k,0) - vel(i,j,k,0));
+                        Real uz = amrex::Math::abs(vel(i,j,k+1,0) - vel(i,j,k,0));
+                        Real vx = amrex::Math::abs(vel(i+1,j,k,1) - vel(i,j,k,1));
+                        Real vy = amrex::Math::abs(vel(i,j+1,k,1) - vel(i,j,k,1));
+                        Real vz = amrex::Math::abs(vel(i,j,k+1,1) - vel(i,j,k,1));
+#if (AMREX_SPACEDIM == 3)
+                        Real wx = amrex::Math::abs(vel(i+1,j,k,2) - vel(i,j,k,2));
+                        Real wy = amrex::Math::abs(vel(i,j+1,k,2) - vel(i,j,k,2));
+                        Real wz = amrex::Math::abs(vel(i,j,k+1,2) - vel(i,j,k,2));
+#else
+                        Real wx = 0.0;
+                        Real wy = 0.0;
+                        Real wz = 0.0;
+#endif
+                        Real gradspeed = std::sqrt(ux*ux + uy*uy + uz*uz + vx*vx + vy*vy + vz*vz + wx*wx + wy*wy + wz*wz);
+                        if (gradspeed >= gradspeederr) {
+                            tag(i,j,k) = tagval;
+                        }
+                    }
+                });
+            }
+        }
 #endif
 
     } // mfi
