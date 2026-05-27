@@ -257,7 +257,9 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
         Real min_dt = (m_dt_min > 0.0) ? m_dt_min : 10.0 * eps;
         if (dt_plot < min_dt) {
             amrex::Print() << "WARNING: dt_new to match plot_per_exact would be too small (" << dt_plot << "). Using min_dt = " << min_dt << std::endl;
-            dt_new = min_dt;
+            if (dt_plot > 10.0 * eps) {
+                dt_new = dt_plot;
+            }
         } else {
             dt_new = dt_plot;
         }
