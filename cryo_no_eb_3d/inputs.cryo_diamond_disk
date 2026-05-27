@@ -33,14 +33,15 @@ incflo.mu               =   0.001966    # Dynamic viscosity coefficient
 #incflo.trac_is_conservative =   1
 
 incflo.use_temperature  =   true
-incflo.mu_T             =   0.00014
+incflo.mu_T             =   0.000244    # For now using thermal diffusivity, but it should be thermal conductivity
+incflo.cp               =   1.0         # Set to 1 for now because the temperature update is non-conservative
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              CRYO PLUNGING            #
 #.......................................#
 incflo.probtype         =   3000
 incflo.sim_cryo         =   true
-incflo.cryo_geometry    =   1
+incflo.cryo_geometry    =   -5
 incflo.dt_min           =   1e-3
 incflo.cryo_plunge_vel  =   -1.0  1.0 -1.0  1.0  0.0
 incflo.cryo_plunge_time =    0.0  6.0  7.0  8.0  9.0
@@ -65,6 +66,7 @@ incflo.tag_region_hi    =    0.5   0.5   0.0
 amr.regrid_int          =   1
 incflo.tag_cell_type    =   true
 incflo.gradtemperr      =   8. 4. 1.
+incflo.gradspeederr     =   1. 0.1 0.01
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #

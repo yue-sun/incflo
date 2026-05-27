@@ -42,7 +42,7 @@ amrex::Real temp_sam = amrex::Real(244.0);
 amrex::Real l_phys = amrex::Real(1.e-3); // mm
 amrex::Real t_phys = amrex::Real(1.e-3); // ms
 // amrex::Real m_phys = amrex::Real(651.6e-9); // kg/mm^3
-amrex::Real m_phys = amrex::Real(0.6516e-3); // CHR units
+amrex::Real m_phys = amrex::Real(6.516e-7); // CHR units
 
 // Cryo-plunging properties
 // Density kg/m^3
@@ -50,16 +50,22 @@ amrex::Real rho_eth_phys = amrex::Real(651.6);
 amrex::Real rho_tcp_phys = amrex::Real(8860.0);
 amrex::Real rho_plu_phys = amrex::Real(19300.0);
 amrex::Real rho_sam_phys = amrex::Real(1000.0);
+amrex::Real rho_sap_phys = amrex::Real(3980.0);
+amrex::Real rho_dia_phys = amrex::Real(3515.0);
 // Specific heat capacity J/(kg K)
 amrex::Real cp_eth_phys = amrex::Real(1610.0);
 amrex::Real cp_tcp_phys = amrex::Real(393.0);
 amrex::Real cp_plu_phys = amrex::Real(125.0);
 amrex::Real cp_sam_phys = amrex::Real(4187.0);
+amrex::Real cp_sap_phys = amrex::Real(700.0); //TODO: fix average
+amrex::Real cp_dia_phys = amrex::Real(500.0);
 // Thermal conductivity W/(m K)
 amrex::Real k_eth_phys = amrex::Real(0.256);
 amrex::Real k_tcp_phys = amrex::Real(21.8);
 amrex::Real k_plu_phys = amrex::Real(345.0);
 amrex::Real k_sam_phys = amrex::Real(0.598);
+amrex::Real k_sap_phys = amrex::Real(40.0);
+amrex::Real k_dia_phys = amrex::Real(1800.0); // TODO: fix average
 
 ///////////////////////////////////////////////////////////////////////////
 //
@@ -137,5 +143,17 @@ amrex::Real cp_sam = cp_sam_phys * conv_cp;
 amrex::Real vhc_sam = rho_sam_phys * cp_sam_phys * conv_vhc;
 amrex::Real k_sam = k_sam_phys * conv_k;
 amrex::Real kappa_sam = k_sam / vhc_sam;
+// Sapphire disk
+amrex::Real rho_sap = rho_sap_phys * conv_rho;
+amrex::Real cp_sap = cp_sap_phys * conv_cp;
+amrex::Real vhc_sap = rho_sap_phys * cp_sap_phys * conv_vhc;
+amrex::Real k_sap = k_sap_phys * conv_k;
+amrex::Real kappa_sap = k_sap / vhc_sap;
+// Diamond disk
+amrex::Real rho_dia = rho_dia_phys * conv_rho;
+amrex::Real cp_dia = cp_dia_phys * conv_cp;
+amrex::Real vhc_dia = rho_dia_phys * cp_dia_phys * conv_vhc;
+amrex::Real k_dia = k_dia_phys * conv_k;
+amrex::Real kappa_dia = k_dia / vhc_dia;
 
 #endif

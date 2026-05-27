@@ -143,9 +143,9 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             cell_type_ijk = -1;
         }
     }
-    else if (m_cryo_geometry == 1)
+    else if (m_cryo_geometry == -4)
     {
-        // 1: sapphire disk
+        // -4: sapphire disk
         Real R_sap_disk = Real(1.5);      // sapphire disk radius: 1.5mm
         Real w_sap_disk = Real(0.16 / 2); // sapphire disk width: 160um
 
@@ -157,6 +157,29 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             geom_sap_disk_thickness < w_sap_disk)
         {
             cell_type_ijk = -4;
+            velx = Real(0.0);
+            vely = Real(0.0);
+            velz = velz_plunge;
+        }
+        else
+        {
+            cell_type_ijk = -1;
+        }
+    }
+    else if (m_cryo_geometry == -5)
+    {
+        // -5: diamond disk
+        Real R_dia_disk = Real(1.5);      // diamond disk radius: 1.5mm
+        Real w_dia_disk = Real(0.1 / 2); // diamond disk width: 0.1mm
+
+        Real zoff = R_dia_disk + plunge_disp;
+        Real geom_dia_disk = x * x + (z - zoff) * (z - zoff);
+        Real geom_dia_disk_thickness = amrex::Math::abs(y);
+        // Disk geometry
+        if (geom_dia_disk < R_dia_disk * R_dia_disk &&
+            geom_dia_disk_thickness < w_dia_disk)
+        {
+            cell_type_ijk = -5;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
