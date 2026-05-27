@@ -143,7 +143,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             cell_type_ijk = -1;
         }
     }
-    else if (m_cryo_geometry == -4)
+    else if (m_cryo_geometry == 4)
     {
         // -4: sapphire disk
         Real R_sap_disk = Real(1.5);      // sapphire disk radius: 1.5mm
@@ -166,7 +166,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             cell_type_ijk = -1;
         }
     }
-    else if (m_cryo_geometry == -5)
+    else if (m_cryo_geometry == 5)
     {
         // -5: diamond disk
         Real R_dia_disk = Real(1.5);      // diamond disk radius: 1.5mm
@@ -227,6 +227,10 @@ void incflo::cryo_set_temp_top_bc(Real z, Real &temperature_ijk, int cell_type_i
         // Set top temperature boundary condition for solid cells
         temperature_ijk = m_cryo_temp_entry;
     }
+    //  else {
+    //     // Set top temperature boundary condition for fluid cells
+    //     temperature_ijk = m_cryo_temp_eth;
+    // }
 #endif
 }
 

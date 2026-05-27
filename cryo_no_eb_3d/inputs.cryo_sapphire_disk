@@ -1,7 +1,7 @@
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            SIMULATION STOP            #
 #.......................................#
-stop_time               =   10.0       # Max (simulated) time to evolve
+stop_time               =   4.0       # Max (simulated) time to evolve
 max_step                =  -1           # Max number of time steps
 steady_state            =   0           # Steady-state solver? 
 
@@ -41,7 +41,7 @@ incflo.cp               =   1.0         # Set to 1 for now because the temperatu
 #.......................................#
 incflo.probtype         =   3000
 incflo.sim_cryo         =   true
-incflo.cryo_geometry    =   -4
+incflo.cryo_geometry    =   4
 incflo.dt_min           =   1e-3
 incflo.cryo_plunge_vel  =   -1.0  1.0 -1.0  1.0  0.0
 incflo.cryo_plunge_time =    0.0  6.0  7.0  8.0  9.0

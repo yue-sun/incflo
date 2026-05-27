@@ -145,8 +145,43 @@ void incflo::compute_tracer_diff_coeff (Vector<MultiFab*> const& tra_eta, int ng
 
 void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> const& tem_eta) const
 {
-    for (auto *mf : tem_eta) { // loop over levels
+    // TODO: we need to add a check here and see if this is updated using conservative or non-conservative update. If non-conservative, then tem_eta is actually the thermal diffusivity, so we should set it to kappa instead of k.
+    // But I want to have it being k for conservative update. Need to implement that.
+    for (int lev = 0; lev < static_cast<int>(tem_eta.size()); ++lev)
+    {
+        auto *mf = tem_eta[lev];
+        // Default: set all cells to fluid thermal conductivity
         mf->setVal(m_mu_T);
+        // TODO: if temperature update is non-conservative, then this mu_T is actually the thermal diffusivity. So in this case, cp to be 1 makes sense.
+
+        auto const& ct_mf = m_leveldata[lev]->cell_type;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box const& bx = mfi.tilebox();
+            Array4<Real>      const& eta = mf->array(mfi);
+            Array4<int const> const& ct  = ct_mf.const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (ct(i, j, k) == -2) { // thermocouple
+                    eta(i, j, k) = kappa_tcp;
+                } else if (ct(i, j, k) == -3) { // EM grid
+                    eta(i, j, k) = kappa_plu;
+                } else if (ct(i, j, k) == -4) { // sapphire disk
+                    eta(i, j, k) = kappa_sap;
+                } else if (ct(i, j, k) == -5) { // diamond disk
+                    eta(i, j, k) = kappa_dia;
+                } else if (ct(i, j, k) == -6) { // debug sphere (same as EM grid)
+                    eta(i, j, k) = kappa_plu;
+                } else if (ct(i, j, k) >= 0) { // samples
+                    eta(i, j, k) = kappa_sam;
+                }
+            });
+        }
     }
 }
 
