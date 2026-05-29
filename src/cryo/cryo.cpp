@@ -30,6 +30,7 @@ void incflo::cryo_update()
         {
             Box const &bx = mfi.tilebox();
             Array4<Real> const &vel = ld.velocity.array(mfi);
+            Array4<Real> const &density = ld.density.array(mfi);
             Array4<int> const &cell_type = ld.cell_type.array(mfi);
             Array4<Real> const &temperature = ld.temperature.array(mfi);
 
@@ -44,11 +45,14 @@ void incflo::cryo_update()
                             Real &vely = vel(i, j, k, 1);
                             Real &velz = vel(i, j, k, 2);
                             Real &temperature_ijk = temperature(i, j, k);
+                            Real &rho_ijk = density(i, j, k);
+
 
                             // Set geometry and velocity
                             cryo_set_geom_velocity(i, j, k, x, y, z,
                                                    velx, vely, velz,
                                                    cell_type_ijk,
+                                                   rho_ijk,
                                                    m_cur_time, dx, problo, probhi);
                             // Set thermal properties and top temperature B.C.
                             cryo_set_thermal(i, j, k, x, y, z,
@@ -66,6 +70,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
                                     Real x, Real y, Real z,
                                     Real &velx, Real &vely, Real &velz,
                                     int &cell_type_ijk,
+                                    Real &rho_ijk,
                                     Real time,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,

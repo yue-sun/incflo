@@ -27,6 +27,8 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         Real &vely = vel(i,j,k,1);
         Real &velz = vel(i,j,k,2);
         int &cell_type_ijk = cell_type(i,j,k);
+        Real &temperature_ijk = temperature(i,j,k);
+        Real &rho_ijk = density(i,j,k);
 
         // Initialize density, velocity, and cell_type for each cell
         density(i,j,k) = Real(1.0);
@@ -37,17 +39,38 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         // based on the prescribed velocity of the plunging protocol
 #ifdef INCFLO_SIM_CRYO
         cryo_set_geom_velocity(i, j, k, x, y, z,
-                            velx, vely, velz, cell_type_ijk,
+                            velx, vely, velz, cell_type_ijk, rho_ijk,
                             m_cur_time, dx, problo, probhi);
         cryo_set_thermal(i, j, k, x, y, z, cell_type_ijk, m_cur_time, dx, problo, probhi);
 
         // Set initial temperature
         if (cell_type_ijk == -1) {
             // -1: liquid ethane (fluid)
-            temperature(i,j,k) = m_cryo_temp_eth;
+            temperature_ijk = m_cryo_temp_eth;
         } else {
             // All other cell types for solids
-            temperature(i,j,k) = m_cryo_temp_entry;
+            temperature_ijk = m_cryo_temp_entry;
+        }
+
+        // Set initial density
+        if (cell_type_ijk == -1) {
+            // -1: liquid ethane (fluid)
+            rho_ijk = rho_eth;
+        } else if (cell_type_ijk == -2) {
+            // -2: thermocouple (solid)
+            rho_ijk = rho_tcp;
+        } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
+            // -3: EM grid (solid), -6: debug sphere
+            rho_ijk = rho_plu;
+        } else if (cell_type_ijk == -4) {
+            // -4: sapphire grid (solid)
+            rho_ijk = rho_sap;
+        } else if (cell_type_ijk == -5) {
+            // -5: diamond grid (solid)
+            rho_ijk = rho_dia;
+        } else if (cell_type_ijk >= 0) {
+            // >=0: sample (solid)
+            rho_ijk = rho_sam;
         }
 #endif
 
@@ -59,7 +82,7 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         // -5: diamond grid (solid),
         // -6: debug sphere
         // TODO: if (cell_type_ijk == -1.0) {
-        //     temperature(i,j,k) = ...;
+        //     temperature_ijk = ...;
         // }
 
     });
