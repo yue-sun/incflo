@@ -17,6 +17,9 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
     amrex::Abort("init_cryo_plugning: not implemented in 2D");
 
 #elif (AMREX_SPACEDIM == 3)
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
+
     amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real x = (i+0.5)*dx[0] - 0.5*(probhi[0] - problo[0]);
@@ -52,25 +55,27 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
             temperature_ijk = m_cryo_temp_entry;
         }
 
-        // Set initial density
-        if (cell_type_ijk == -1) {
-            // -1: liquid ethane (fluid)
-            rho_ijk = rho_eth;
-        } else if (cell_type_ijk == -2) {
-            // -2: thermocouple (solid)
-            rho_ijk = rho_tcp;
-        } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
-            // -3: EM grid (solid), -6: debug sphere
-            rho_ijk = rho_plu;
-        } else if (cell_type_ijk == -4) {
-            // -4: sapphire grid (solid)
-            rho_ijk = rho_sap;
-        } else if (cell_type_ijk == -5) {
-            // -5: diamond grid (solid)
-            rho_ijk = rho_dia;
-        } else if (cell_type_ijk >= 0) {
-            // >=0: sample (solid)
-            rho_ijk = rho_sam;
+        // Set initial density from material type only in conservative temperature mode.
+        if (conservative_temperature) {
+            if (cell_type_ijk == -1) {
+                // -1: liquid ethane (fluid)
+                rho_ijk = rho_eth;
+            } else if (cell_type_ijk == -2) {
+                // -2: thermocouple (solid)
+                rho_ijk = rho_tcp;
+            } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
+                // -3: EM grid (solid), -6: debug sphere
+                rho_ijk = rho_plu;
+            } else if (cell_type_ijk == -4) {
+                // -4: sapphire grid (solid)
+                rho_ijk = rho_sap;
+            } else if (cell_type_ijk == -5) {
+                // -5: diamond grid (solid)
+                rho_ijk = rho_dia;
+            } else if (cell_type_ijk >= 0) {
+                // >=0: sample (solid)
+                rho_ijk = rho_sam;
+            }
         }
 #endif
 

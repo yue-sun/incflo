@@ -15,6 +15,8 @@ using namespace amrex;
 
 void incflo::init_advection ()
 {
+    ParmParse pp("incflo");
+
     // Use convective differencing for velocity
     if (m_advect_momentum) {
         m_iconserv_velocity.resize(  AMREX_SPACEDIM, 1);
@@ -28,13 +30,20 @@ void incflo::init_advection ()
     m_iconserv_density.resize(1, 1);
     m_iconserv_density_d.resize(1, 1);
 
-    // Temperature is always updated non-conservatively
+    // Temperature defaults to non-conservative update.
     m_iconserv_temperature.resize(1, 0);
-    m_iconserv_temperature_d.resize(1, 0);
+    pp.queryarr("temp_is_conservative", m_iconserv_temperature, 0, 1);
+    m_iconserv_temperature_d.resize(1);
+    // copy
+#ifdef AMREX_USE_GPU
+    Gpu::htod_memcpy
+#else
+    std::memcpy
+#endif
+        (m_iconserv_temperature_d.data(), m_iconserv_temperature.data(), sizeof(int));
 
     // Advect scalars conservatively?
     m_iconserv_tracer.resize(m_ntrac, 1);
-    ParmParse pp("incflo");
     pp.queryarr("trac_is_conservative", m_iconserv_tracer, 0, m_ntrac );
     m_iconserv_tracer_d.resize(m_ntrac);
     // copy

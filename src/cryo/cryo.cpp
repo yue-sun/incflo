@@ -78,6 +78,9 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
 {
     BL_PROFILE("incflo::cryo_set_geom_velocity");
 
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
+
 #if (AMREX_SPACEDIM == 2)
     amrex::Abort("cryo_update: not implemented in 2D");
 
@@ -192,6 +195,24 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         else
         {
             cell_type_ijk = -1;
+        }
+    }
+
+    if (conservative_temperature)
+    {
+        // Map material density from cell type only for conservative temperature mode.
+        if (cell_type_ijk == -1) {
+            rho_ijk = rho_eth;
+        } else if (cell_type_ijk == -2) {
+            rho_ijk = rho_tcp;
+        } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
+            rho_ijk = rho_plu;
+        } else if (cell_type_ijk == -4) {
+            rho_ijk = rho_sap;
+        } else if (cell_type_ijk == -5) {
+            rho_ijk = rho_dia;
+        } else if (cell_type_ijk >= 0) {
+            rho_ijk = rho_sam;
         }
     }
 #endif

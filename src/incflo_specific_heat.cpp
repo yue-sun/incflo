@@ -8,7 +8,7 @@ void incflo::compute_cp (int lev, MFIter& mfi, FArrayBox& cp) const
     Array4<Real> const& cp_a = cp.array();
     bool const conservative_temperature = !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
 
-    if (!conservative_temperature && !m_sim_cryo) {
+    if (!conservative_temperature) {
         Real l_cp = m_cp;
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
