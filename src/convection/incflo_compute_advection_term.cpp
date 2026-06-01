@@ -213,17 +213,15 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
             compute_tem_forces(m_cur_time, tem_forces);
             for (int lev = 0; lev <= finest_level; ++lev) {
                 auto& ld = *m_leveldata[lev];
+                compute_cp(lev, ld.cp);
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
                 for (MFIter mfi(*density[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     Box const& bx = mfi.tilebox();
-                    FArrayBox cp_fab(bx, 1, The_Async_Arena());
-                    Array4<Real      > const& cp    = cp_fab.array();
+                    Array4<Real const> const& cp    = ld.cp.const_array(mfi);
                     Array4<Real const> const& rho   = density[lev]->array(mfi);
                     Array4<Real      > const& tem_f = tem_forces[lev]->array(mfi);
-
-                    compute_cp(lev, mfi, cp_fab);
                     if (m_godunov_include_diff_in_forcing) {
                         Array4<Real const> const& laps = ld.laps_tem_o.const_array(mfi);
                         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
