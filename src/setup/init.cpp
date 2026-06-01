@@ -42,6 +42,11 @@ void incflo::ReadParameters ()
 
         pp.query("fixed_dt", m_fixed_dt);
         pp.query("cfl", m_cfl);
+        pp.query("thermal_cfl", m_thermal_cfl);
+
+        if (m_thermal_cfl < 0.0) {
+            amrex::Abort("We require thermal_cfl >= 0.0");
+        }
 
         // This will multiply the time-step in the very first step only
         pp.query("init_shrink", m_init_shrink);
@@ -160,11 +165,7 @@ void incflo::ReadParameters ()
         }
 
         pp.query("use_temperature", m_use_temperature);
-        // Checks for things not yet implemented/checked
-        if (m_use_temperature && m_advection_type == "MOL") {
-            // temperature equation not added to the corrector
-            amrex::Abort("Temperature equation not yet implemented with MOL option");
-        }
+        // Temperature can be advanced with MOL via conv_temperature in predictor/corrector.
 #ifdef AMREX_USE_EB
         std::string geom_type = "all_regular";
         pp.query("geometry", geom_type);
@@ -473,6 +474,8 @@ void incflo::InitialIterations ()
 
     copy_from_new_to_old_velocity();
     copy_from_new_to_old_density();
+    copy_from_new_to_old_cp();
+    copy_from_new_to_old_thermal_conductivity();
     copy_from_new_to_old_tracer();
     copy_from_new_to_old_temperature();
     copy_from_new_to_old_cell_type();
@@ -516,6 +519,8 @@ void incflo::InitialIterations ()
 
         copy_from_old_to_new_velocity();
         copy_from_old_to_new_density();
+        copy_from_old_to_new_cp();
+        copy_from_old_to_new_thermal_conductivity();
         copy_from_old_to_new_tracer();
         copy_from_old_to_new_temperature();
         copy_from_old_to_new_cell_type();
