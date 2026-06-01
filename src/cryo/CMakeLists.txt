@@ -4,5 +4,7 @@ if (SIM_CRYO)
    target_sources(incflo
       PRIVATE
       cryo.cpp
-      cryo.H)
+      cryo.H
+      cryo_tc_experiment.cpp
+      cryo_tc_experiment.H)
 endif()

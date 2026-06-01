@@ -1,16 +1,22 @@
 #include <incflo.H>
+#include <cryo_tc_experiment.H>
 
 using namespace amrex;
 
 #ifdef INCFLO_SIM_CRYO
 
-void incflo::cryo_update()
+void incflo::cryo_update(Real time)
 {
     BL_PROFILE("incflo::cryo_update");
 
     if (!m_sim_cryo)
     {
         return;
+    }
+
+    if (time < Real(0.0))
+    {
+        time = m_cur_time;
     }
 
 #if (AMREX_SPACEDIM == 2)
@@ -34,7 +40,7 @@ void incflo::cryo_update()
             Array4<int> const &cell_type = ld.cell_type.array(mfi);
             Array4<Real> const &temperature = ld.temperature.array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
                             Real x = (i + 0.5) * dx[0] - 0.5 * (probhi[0] - problo[0]);
                             Real y = (j + 0.5) * dx[1] - 0.5 * (probhi[1] - problo[1]);
@@ -53,14 +59,13 @@ void incflo::cryo_update()
                                                    velx, vely, velz,
                                                    cell_type_ijk,
                                                    rho_ijk,
-                                                   m_cur_time, dx, problo, probhi);
+                                               time, dx, problo, probhi);
                             // Set thermal properties and top temperature B.C.
                             cryo_set_thermal(i, j, k, x, y, z,
                                              cell_type_ijk,
-                                             m_cur_time, dx, problo, probhi);
+                                           time, dx, problo, probhi);
                             // Set top boundary condition for temperature/heat
-                            cryo_set_temp_top_bc(z, temperature_ijk, cell_type_ijk, dx, probhi);
-                        });
+                            cryo_set_temp_top_bc(z, temperature_ijk, cell_type_ijk, dx, probhi); });
         }
     }
 #endif
@@ -136,9 +141,9 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
     if (m_cryo_geometry == -1)
     {
         // -1: debug sphere, static
-        Real Rdebug = 2.5;
-        Real zoff = 2.0 * Rdebug - plunge_disp;
-        Real geom_sphere = x * x + y * y + (z + zoff) * (z + zoff);
+        Real Rdebug = 0.2;
+        Real zoff = -2. * Rdebug + plunge_disp;
+        Real geom_sphere = x * x + y * y + (z - zoff) * (z - zoff);
         if (geom_sphere < Rdebug * Rdebug)
         {
             cell_type_ijk = -6;
@@ -177,7 +182,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
     else if (m_cryo_geometry == 5)
     {
         // -5: diamond disk
-        Real R_dia_disk = Real(1.5);      // diamond disk radius: 1.5mm
+        Real R_dia_disk = Real(1.5);     // diamond disk radius: 1.5mm
         Real w_dia_disk = Real(0.1 / 2); // diamond disk width: 0.1mm
 
         Real zoff = R_dia_disk + plunge_disp;
@@ -197,21 +202,107 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             cell_type_ijk = -1;
         }
     }
+    else if (m_cryo_geometry == 10)
+    {
+        // 10: Thermocouple probe, 60 um bead diameter with 25 um wire.
+        // The spline-based motion is time-only, so compute it once here and
+        // then apply the same kinematics to every cell in the probe body.
+        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
+
+        // The existing cryo setup uses cell_type -2 for thermocouple material.
+        // Model the bead as a sphere centered on the plunge path.
+        Real const rtc1 = Real(0.03); // 60 um diameter -> 0.03 mm radius
+        Real const zz = z - rtc1 + motion.depth;
+        Real const geometry = x * x + y * y + zz * zz;
+
+        if (geometry < rtc1 * rtc1)
+        {
+            cell_type_ijk = -2;
+            velx = Real(0.0);
+            vely = Real(0.0);
+            velz = -motion.speed;
+        }
+        else
+        {
+            cell_type_ijk = -1;
+        }
+    }
+    else if (m_cryo_geometry == 11)
+    {
+        // 11: Thermocouple probe, 100 um bead diameter with 25 um wire.
+        // The spline-based motion is time-only, so compute it once here and
+        // then apply the same kinematics to every cell in the probe body.
+        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
+
+        // The existing cryo setup uses cell_type -2 for thermocouple material.
+        // Model the bead as a sphere centered on the plunge path.
+        Real const rtc1 = Real(0.05); // 100 um diameter -> 0.05 mm radius
+        Real const zz = z - rtc1 + motion.depth;
+        Real const geometry = x * x + y * y + zz * zz;
+
+        if (geometry < rtc1 * rtc1)
+        {
+            cell_type_ijk = -2;
+            velx = Real(0.0);
+            vely = Real(0.0);
+            velz = -motion.speed;
+        }
+        else
+        {
+            cell_type_ijk = -1;
+        }
+    }
+    else if (m_cryo_geometry == 12)
+    {
+        // 12: Thermocouple probe, 400 um bead diameter with 127 um wire.
+        // The spline-based motion is time-only, so compute it once here and
+        // then apply the same kinematics to every cell in the probe body.
+        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
+
+        // The existing cryo setup uses cell_type -2 for thermocouple material.
+        // Model the bead as a sphere centered on the plunge path.
+        Real const rtc1 = Real(0.2); // 400 um diameter -> 0.2 mm radius
+        Real const zz = z - rtc1 + motion.depth;
+        Real const geometry = x * x + y * y + zz * zz;
+
+        if (geometry < rtc1 * rtc1)
+        {
+            cell_type_ijk = -2;
+            velx = Real(0.0);
+            vely = Real(0.0);
+            velz = -motion.speed;
+        }
+        else
+        {
+            cell_type_ijk = -1;
+        }
+    }
 
     if (conservative_temperature)
     {
         // Map material density from cell type only for conservative temperature mode.
-        if (cell_type_ijk == -1) {
+        if (cell_type_ijk == -1)
+        {
             rho_ijk = rho_eth;
-        } else if (cell_type_ijk == -2) {
+        }
+        else if (cell_type_ijk == -2)
+        {
             rho_ijk = rho_tcp;
-        } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
+        }
+        else if (cell_type_ijk == -3 || cell_type_ijk == -6)
+        {
             rho_ijk = rho_plu;
-        } else if (cell_type_ijk == -4) {
+        }
+        else if (cell_type_ijk == -4)
+        {
             rho_ijk = rho_sap;
-        } else if (cell_type_ijk == -5) {
+        }
+        else if (cell_type_ijk == -5)
+        {
             rho_ijk = rho_dia;
-        } else if (cell_type_ijk >= 0) {
+        }
+        else if (cell_type_ijk >= 0)
+        {
             rho_ijk = rho_sam;
         }
     }

@@ -1,0 +1,122 @@
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#                 TC3 CASE              #
+#.......................................#
+stop_time               =   5.0       # Max (simulated) time to evolve
+max_step                =  -1           # Max number of time steps
+steady_state            =   0           # Steady-state solver? 
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#         TIME STEP COMPUTATION         #
+#.......................................#
+incflo.fixed_dt         =   -1        # Use this constant dt if > 0
+incflo.cfl              =   0.5        # CFL factor
+incflo.thermal_cfl      =   0.9
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            INPUT AND OUTPUT           #
+#.......................................#
+amr.plot_per_exact      =   0.1        # Steps between plot files
+amr.check_int           =   1000        # Steps between checkpoint files
+amr.restart             =   ""          # Checkpoint to restart from 
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨
+#               PHYSICS                 #
+#.......................................#
+incflo.advection_type   =   "MOL"      # Options: Godunov, MOL, BDS
+incflo.diffusion_type   =   2          # 0: Explicit, 1: Crank-Nicolson, 2: Implicit
+
+incflo.gravity          =   0.  0.  0.  # Gravitational force (3D)
+incflo.ro_0             =   1.          # Reference density 
+
+incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
+incflo.mu               =   0.001966    # Dynamic viscosity coefficient
+
+#incflo.ntrac           =   1           # Number of tracers
+#incflo.advect_tracer   =   true        # Should we update them?
+#incflo.mu_s            =   0.00014     # Scalar diffusion coefficient
+#incflo.trac_is_conservative =   1
+
+incflo.use_temperature  =   true
+incflo.temp_is_conservative  =   1
+incflo.mu_T             =   0.000244    # For now using thermal diffusivity, but it should be thermal conductivity
+incflo.cp               =   1.0         # Set to 1 for now because the temperature update is non-conservative
+incflo.temp_iface_smooth_iters  =   4    # Optional: smooth k at material interfaces (0 disables)
+incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              CRYO PLUNGING            #
+#.......................................#
+incflo.probtype         =   3000
+incflo.sim_cryo         =   true
+incflo.cryo_geometry    =   11
+incflo.dt_min           =   1e-3
+incflo.cryo_plunge_vel  =   -1.0  1.0  0.0
+incflo.cryo_plunge_time =    0.0  4.0  4.5
+incflo.cryo_temp_entry  =   244.0
+incflo.cryo_temp_eth    =   90.0
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#        ADAPTIVE MESH REFINEMENT       #
+#.......................................#
+amr.n_cell              =   16 16 32  # Grid cells at coarsest AMRlevel
+amr.max_level           =   2           # Max AMR level in hierarchy 
+amr.ref_ratio           =   4 2 4 4
+amr.max_grid_size       =   16 16 16  # Max grid size at AMR levels
+amr.blocking_factor     =   32           # Blocking factor for grids
+amr.grid_eff            =   0.7 
+amr.n_error_buf         =   4
+
+incflo.tag_region       =   true
+incflo.tag_region_time  =   0.03
+incflo.tag_region_lo    =   -0.2  -0.2  -4.0
+incflo.tag_region_hi    =    0.2   0.2   0.0
+#amr.regrid_int          =   1
+incflo.tag_cell_type    =   false
+#incflo.gradtemperr      =   8. 4. 1.
+#incflo.gradspeederr     =   1. 0.1 0.01
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              GEOMETRY                 #
+#.......................................#
+geometry.prob_lo        =   -1.0  -1.0  -4.  # Lo corner coordinates
+geometry.prob_hi        =    1.0   1.0  0  # Hi corner coordinates
+geometry.is_periodic    =   0   0   0   # Periodicity x y z (0/1)
+
+# Boundary conditions
+xlo.type                =   "nsw"
+xlo.velocity            =   0.  0.  0.
+xhi.type                =   "nsw"
+xhi.velocity            =   0.  0.  0.
+ylo.type                =   "nsw"
+ylo.velocity            =   0.  0.  0.
+yhi.type                =   "nsw"
+yhi.velocity            =   0.  0.  0.
+zlo.type                =   "nsw"
+zlo.velocity            =   0.  0.  0.
+zlo.tracer              =   1.
+zhi.type                =   "pi"
+zhi.pressure            =   0.0
+zhi.temperature         =   270.
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           INITIAL CONDITIONS          #
+#.......................................#
+#incflo.ic_u             =   0.0         #
+#incflo.ic_v             =   0.0         #
+#incflo.ic_w             =   0.0         #
+#incflo.ic_p             =   0.0         #
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              VERBOSITY                #
+#.......................................#
+amr.verbose             =   2
+incflo.verbose          =   2          # incflo itself
+mac_proj.verbose        =   0          # MAC Projector
+nodal_proj.verbose      =   0          # Nodal Projector
+
+scalar_diffusion.verbose  =   0         # Scalar Diffusion 
+tensor_diffusion.verbose  =   0         # Tensor Diffusion
+
+incflo.initial_iterations =   0
+
+amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p cp thermal_conductivity

@@ -1,4 +1,6 @@
 ifeq ($(SIM_CRYO),TRUE)
 	CEXE_sources += cryo.cpp
+	CEXE_sources += cryo_tc_experiment.cpp
     CEXE_headers += cryo.H
+	CEXE_headers += cryo_tc_experiment.H
 endif
