@@ -326,7 +326,46 @@ incflo::average_scalar_eta_to_faces (int lev, int comp, MultiFab const& cc_eta) 
     EB_interp_CellCentroid_to_FaceCentroid (cc, GetArrOfPtrs(r), 0, 0, 1, geom[lev],
                                             get_tracer_bcrec());
 #else
-    amrex::average_cellcenter_to_face(GetArrOfPtrs(r), cc, Geom(lev));
+    // Harmonic averaging: k_face = 2*kL*kR / (kL+kR).
+    // Physically correct at sharp material interfaces (continuity of heat flux).
+    // Arithmetic averaging would inflate k_face by O(k_hi/k_lo) at large-contrast
+    // boundaries (e.g. diamond/ethane ~7000x), causing solver ill-conditioning.
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(cc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box const& bx  = mfi.tilebox();
+        Array4<Real const> const& cca = cc.const_array(mfi);
+        {
+            Box fbx = surroundingNodes(bx, 0);
+            Array4<Real> const& fa = r[0].array(mfi);
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real kL = cca(i-1,j,k), kR = cca(i,j,k);
+                Real s = kL + kR;
+                fa(i,j,k) = (s > Real(1.e-300)) ? Real(2.0)*kL*kR/s : Real(0.0);
+            });
+        }
+        {
+            Box fbx = surroundingNodes(bx, 1);
+            Array4<Real> const& fa = r[1].array(mfi);
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real kL = cca(i,j-1,k), kR = cca(i,j,k);
+                Real s = kL + kR;
+                fa(i,j,k) = (s > Real(1.e-300)) ? Real(2.0)*kL*kR/s : Real(0.0);
+            });
+        }
+#if (AMREX_SPACEDIM == 3)
+        {
+            Box fbx = surroundingNodes(bx, 2);
+            Array4<Real> const& fa = r[2].array(mfi);
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real kL = cca(i,j,k-1), kR = cca(i,j,k);
+                Real s = kL + kR;
+                fa(i,j,k) = (s > Real(1.e-300)) ? Real(2.0)*kL*kR/s : Real(0.0);
+            });
+        }
+#endif
+    }
 #endif
     fixup_eta_on_domain_faces(lev, r, cc);
     return r;

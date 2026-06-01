@@ -150,14 +150,7 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
 
     int temp_iface_smooth_iters = 0;
     Real temp_iface_smooth_weight = Real(0.0);
-    {
-        ParmParse pp("incflo");
-        pp.query("temp_iface_smooth_iters", temp_iface_smooth_iters);
-        pp.query("temp_iface_smooth_weight", temp_iface_smooth_weight);
-    }
-    temp_iface_smooth_iters = amrex::max(0, temp_iface_smooth_iters);
-    temp_iface_smooth_weight = amrex::min(Real(1.0),
-                                          amrex::max(Real(0.0), temp_iface_smooth_weight));
+    get_temperature_property_smoothing(temp_iface_smooth_iters, temp_iface_smooth_weight);
 
     for (int lev = 0; lev < static_cast<int>(tem_eta.size()); ++lev)
     {
@@ -165,7 +158,7 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
         // Outside cryo-material regions, use input value m_mu_T.
         mf->setVal(m_mu_T);
 
-        auto const& ct_mf = m_leveldata[lev]->cell_type;
+        auto& ct_mf = m_leveldata[lev]->cell_type;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -196,71 +189,10 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
             });
         }
 
-        // Optional narrow-band smoothing for conservative temperature runs.
-        // This regularizes very sharp multi-material jumps and can damp interface spikes.
-        if (conservative_temperature && temp_iface_smooth_iters > 0 &&
-            temp_iface_smooth_weight > Real(0.0))
-        {
-            auto const domlo = lbound(geom[lev].Domain());
-            auto const domhi = ubound(geom[lev].Domain());
-            constexpr Real eta_floor = Real(1.0e-300);
-
-            MultiFab eta_old(mf->boxArray(), mf->DistributionMap(), 1, mf->nGrowVect(),
-                             MFInfo(), mf->Factory());
-
-            for (int iter = 0; iter < temp_iface_smooth_iters; ++iter)
-            {
-                MultiFab::Copy(eta_old, *mf, 0, 0, 1, mf->nGrowVect());
-
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-                for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                {
-                    Box const& bx = mfi.tilebox();
-                    Array4<Real> const& eta = mf->array(mfi);
-                    Array4<Real const> const& eta0 = eta_old.const_array(mfi);
-                    Array4<int const> const& ct  = ct_mf.const_array(mfi);
-                    Real const w = temp_iface_smooth_weight;
-
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        int c = ct(i,j,k);
-                        bool interface_cell = false;
-
-                        if (i > domlo.x && ct(i-1,j,k) != c) interface_cell = true;
-                        if (i < domhi.x && ct(i+1,j,k) != c) interface_cell = true;
-                        if (j > domlo.y && ct(i,j-1,k) != c) interface_cell = true;
-                        if (j < domhi.y && ct(i,j+1,k) != c) interface_cell = true;
-#if (AMREX_SPACEDIM == 3)
-                        if (k > domlo.z && ct(i,j,k-1) != c) interface_cell = true;
-                        if (k < domhi.z && ct(i,j,k+1) != c) interface_cell = true;
-#endif
-
-                        if (!interface_cell) {
-                            eta(i,j,k) = eta0(i,j,k);
-                            return;
-                        }
-
-                        Real l0 = std::log(amrex::max(eta0(i,j,k), eta_floor));
-                        Real lsum = l0;
-                        int nsum = 1;
-
-                        if (i > domlo.x) { lsum += std::log(amrex::max(eta0(i-1,j,k), eta_floor)); ++nsum; }
-                        if (i < domhi.x) { lsum += std::log(amrex::max(eta0(i+1,j,k), eta_floor)); ++nsum; }
-                        if (j > domlo.y) { lsum += std::log(amrex::max(eta0(i,j-1,k), eta_floor)); ++nsum; }
-                        if (j < domhi.y) { lsum += std::log(amrex::max(eta0(i,j+1,k), eta_floor)); ++nsum; }
-#if (AMREX_SPACEDIM == 3)
-                        if (k > domlo.z) { lsum += std::log(amrex::max(eta0(i,j,k-1), eta_floor)); ++nsum; }
-                        if (k < domhi.z) { lsum += std::log(amrex::max(eta0(i,j,k+1), eta_floor)); ++nsum; }
-#endif
-
-                        Real lavg = lsum / Real(nsum);
-                        eta(i,j,k) = std::exp((Real(1.0)-w)*l0 + w*lavg);
-                    });
-                }
-            }
-        }
+        smooth_temperature_property_at_interfaces(lev, *mf,
+                                                  temp_iface_smooth_iters,
+                                                  temp_iface_smooth_weight);
     }
+
 }
 
