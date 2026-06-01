@@ -31,6 +31,8 @@ void incflo::Advance()
 
     copy_from_new_to_old_velocity();
     copy_from_new_to_old_density();
+    copy_from_new_to_old_cp();
+    copy_from_new_to_old_thermal_conductivity();
     copy_from_new_to_old_tracer();
     copy_from_new_to_old_temperature();
     copy_from_new_to_old_cell_type();
@@ -73,7 +75,7 @@ void incflo::Advance()
 
 #ifdef INCFLO_SIM_CRYO
     if (m_sim_cryo) {
-        cryo_update();
+        cryo_update(m_cur_time);
     }
 #endif
 

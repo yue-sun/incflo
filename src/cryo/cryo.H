@@ -75,7 +75,7 @@ amrex::Real k_dia_phys = amrex::Real(1800.0); // TODO: fix average
 
 void cryo_init();
 
-void cryo_update();
+void cryo_update(amrex::Real time = amrex::Real(-1.0));
 
 void cryo_set_geom_velocity(int i, int j, int k,
                             amrex::Real x, amrex::Real y, amrex::Real z,
