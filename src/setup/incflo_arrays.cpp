@@ -13,6 +13,11 @@ incflo::LevelData::LevelData (amrex::BoxArray const& ba,
       density_o   (ba, dm, 1             , my_incflo->nghost_state(), MFInfo(), fact),
       density_nph (ba, dm, 1             , my_incflo->nghost_state(), MFInfo(), fact),
 
+    cp          (ba, dm, 1             , my_incflo->nghost_state(), MFInfo(), fact),
+    cp_o        (ba, dm, 1             , my_incflo->nghost_state(), MFInfo(), fact),
+    thermal_conductivity   (ba, dm, 1   , my_incflo->nghost_state(), MFInfo(), fact),
+    thermal_conductivity_o (ba, dm, 1   , my_incflo->nghost_state(), MFInfo(), fact),
+
       tracer    (ba, dm, my_incflo->m_ntrac, my_incflo->nghost_state(), MFInfo(), fact),
       tracer_o  (ba, dm, my_incflo->m_ntrac, my_incflo->nghost_state(), MFInfo(), fact),
 

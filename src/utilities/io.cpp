@@ -114,6 +114,10 @@ void incflo::WriteCheckPointFile() const
         }
 
         if (m_use_temperature) {
+            VisMF::Write(m_leveldata[lev]->cp,
+                         amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "cp"));
+            VisMF::Write(m_leveldata[lev]->thermal_conductivity,
+                         amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "thermal_conductivity"));
             VisMF::Write(m_leveldata[lev]->temperature,
                          amrex::MultiFabFileFullPrefix(lev, checkpointname, level_prefix, "temperature"));
         }
@@ -269,6 +273,13 @@ void incflo::ReadCheckpointFile()
         }
 
         if (m_use_temperature) {
+            VisMF::Read(m_leveldata[lev]->cp,
+                        amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "cp"));
+            VisMF::Read(m_leveldata[lev]->thermal_conductivity,
+                        amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "thermal_conductivity"));
+            MultiFab::Copy(m_leveldata[lev]->cp_o, m_leveldata[lev]->cp, 0, 0, 1, m_leveldata[lev]->cp.nGrow());
+            MultiFab::Copy(m_leveldata[lev]->thermal_conductivity_o, m_leveldata[lev]->thermal_conductivity,
+                           0, 0, 1, m_leveldata[lev]->thermal_conductivity.nGrow());
             VisMF::Read(m_leveldata[lev]->temperature,
                         amrex::MultiFabFileFullPrefix(lev, m_restart_file, level_prefix, "temperature"));
         }
@@ -434,7 +445,7 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
                 fillpatch_density(lev, m_cur_time, m_leveldata[lev]->density, ng);
                 fillpatch_tracer(lev, m_cur_time, m_leveldata[lev]->tracer, ng);
                 // Whether temperature fillpatch is needed depends on form of forcing term
-                // fillpatch_temperature(lev, m_cur_time, m_leveldata[lev]->temperature, ng);
+                fillpatch_temperature(lev, m_cur_time, m_leveldata[lev]->temperature, ng);
             }
             break;
         }
@@ -538,6 +549,26 @@ void incflo::WritePlotVariables(Vector<std::string> vars, const std::string& plo
                 MultiFab::Copy(mf[lev], m_leveldata[lev]->density, 0, icomp, 1, 0);
             }
             pltscaVarsName.push_back("density");
+            ++icomp;
+        }
+        else if (vars[n] == "cp") {
+            if (!m_use_temperature) {
+                Abort("cp plot variable requires temperature to be enabled");
+            }
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                MultiFab::Copy(mf[lev], m_leveldata[lev]->cp, 0, icomp, 1, 0);
+            }
+            pltscaVarsName.push_back("cp");
+            ++icomp;
+        }
+        else if (vars[n] == "thermal_conductivity" || vars[n] == "kappa") {
+            if (!m_use_temperature) {
+                Abort("thermal_conductivity plot variable requires temperature to be enabled");
+            }
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                MultiFab::Copy(mf[lev], m_leveldata[lev]->thermal_conductivity, 0, icomp, 1, 0);
+            }
+            pltscaVarsName.push_back("thermal_conductivity");
             ++icomp;
         }
         else if (vars[n] == "tracer") {

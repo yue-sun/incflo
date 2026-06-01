@@ -84,6 +84,46 @@ Vector<MultiFab*> incflo::get_density_new () noexcept
     return r;
 }
 
+Vector<MultiFab*> incflo::get_cp_old () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cp_o));
+    }
+    return r;
+}
+
+Vector<MultiFab*> incflo::get_cp_new () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cp));
+    }
+    return r;
+}
+
+Vector<MultiFab*> incflo::get_thermal_conductivity_old () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->thermal_conductivity_o));
+    }
+    return r;
+}
+
+Vector<MultiFab*> incflo::get_thermal_conductivity_new () noexcept
+{
+    Vector<MultiFab*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->thermal_conductivity));
+    }
+    return r;
+}
+
 Vector<MultiFab*> incflo::get_density_nph () noexcept
 {
     Vector<MultiFab*> r;
@@ -356,6 +396,46 @@ Vector<MultiFab const*> incflo::get_density_new_const () const noexcept
     return r;
 }
 
+Vector<MultiFab const*> incflo::get_cp_old_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cp_o));
+    }
+    return r;
+}
+
+Vector<MultiFab const*> incflo::get_cp_new_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->cp));
+    }
+    return r;
+}
+
+Vector<MultiFab const*> incflo::get_thermal_conductivity_old_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->thermal_conductivity_o));
+    }
+    return r;
+}
+
+Vector<MultiFab const*> incflo::get_thermal_conductivity_new_const () const noexcept
+{
+    Vector<MultiFab const*> r;
+    r.reserve(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        r.push_back(&(m_leveldata[lev]->thermal_conductivity));
+    }
+    return r;
+}
+
 Vector<MultiFab const*> incflo::get_density_nph_const () const noexcept
 {
     Vector<MultiFab const*> r;
@@ -469,6 +549,32 @@ void incflo::copy_from_new_to_old_density (int lev, IntVect const& ng)
                    m_leveldata[lev]->density, 0, 0, 1, ng);
 }
 
+void incflo::copy_from_new_to_old_cp (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        copy_from_new_to_old_cp(lev, ng);
+    }
+}
+
+void incflo::copy_from_new_to_old_cp (int lev, IntVect const& ng)
+{
+    MultiFab::Copy(m_leveldata[lev]->cp_o,
+                   m_leveldata[lev]->cp, 0, 0, 1, ng);
+}
+
+void incflo::copy_from_new_to_old_thermal_conductivity (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        copy_from_new_to_old_thermal_conductivity(lev, ng);
+    }
+}
+
+void incflo::copy_from_new_to_old_thermal_conductivity (int lev, IntVect const& ng)
+{
+    MultiFab::Copy(m_leveldata[lev]->thermal_conductivity_o,
+                   m_leveldata[lev]->thermal_conductivity, 0, 0, 1, ng);
+}
+
 void incflo::copy_from_old_to_new_density (IntVect const& ng)
 {
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -480,6 +586,32 @@ void incflo::copy_from_old_to_new_density (int lev, IntVect const& ng)
 {
     MultiFab::Copy(m_leveldata[lev]->density,
                    m_leveldata[lev]->density_o, 0, 0, 1, ng);
+}
+
+void incflo::copy_from_old_to_new_cp (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        copy_from_old_to_new_cp(lev, ng);
+    }
+}
+
+void incflo::copy_from_old_to_new_cp (int lev, IntVect const& ng)
+{
+    MultiFab::Copy(m_leveldata[lev]->cp,
+                   m_leveldata[lev]->cp_o, 0, 0, 1, ng);
+}
+
+void incflo::copy_from_old_to_new_thermal_conductivity (IntVect const& ng)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        copy_from_old_to_new_thermal_conductivity(lev, ng);
+    }
+}
+
+void incflo::copy_from_old_to_new_thermal_conductivity (int lev, IntVect const& ng)
+{
+    MultiFab::Copy(m_leveldata[lev]->thermal_conductivity,
+                   m_leveldata[lev]->thermal_conductivity_o, 0, 0, 1, ng);
 }
 
 void incflo::copy_from_new_to_old_tracer (IntVect const& ng)
