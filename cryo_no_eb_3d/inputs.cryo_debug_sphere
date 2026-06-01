@@ -8,13 +8,14 @@ steady_state            =   0           # Steady-state solver?
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #         TIME STEP COMPUTATION         #
 #.......................................#
-incflo.fixed_dt         =   -1.0        # Use this constant dt if > 0
+incflo.fixed_dt         =   0.001        # Use this constant dt if > 0
 incflo.cfl              =   0.5        # CFL factor
+incflo.thermal_cfl      =   1.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
 #.......................................#
-amr.plot_per_exact      =   0.05        # Steps between plot files
+amr.plot_per_exact      =   0.01        # Steps between plot files
 amr.check_int           =   1000        # Steps between checkpoint files
 amr.restart             =   ""          # Checkpoint to restart from 
 
@@ -28,9 +29,11 @@ incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
 incflo.mu               =   0.001966    # Dynamic viscosity coefficient
 
 incflo.use_temperature  =   1
-incflo.temp_is_conservative  =   1
+incflo.temp_is_conservative  =   0
 incflo.mu_T             =   0.392879    # Thermal conductivity
-incflo.cp               =   1610.0      
+incflo.cp               =   1610.0
+incflo.temp_iface_smooth_iters  =   2    # Optional: smooth k at material interfaces (0 disables)
+incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing      
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              CRYO PLUNGING            #
@@ -47,18 +50,18 @@ incflo.cryo_temp_eth    =   90.0
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
-amr.n_cell              =   64 64 64  # Grid cells at coarsest AMRlevel
-amr.max_level           =   0           # Max AMR level in hierarchy 
-amr.ref_ratio           =   2 2
-amr.max_grid_size       =   16  16  16  # Max grid size at AMR levels
+amr.n_cell              =   16 16 16  # Grid cells at coarsest AMRlevel
+amr.max_level           =   3           # Max AMR level in hierarchy 
+amr.ref_ratio           =   4 4 2
+amr.max_grid_size       =   32 32 32  # Max grid size at AMR levels
 amr.blocking_factor     =   8           # Blocking factor for grids
 amr.grid_eff            =   0.7 
 amr.n_error_buf         =   8
 
-incflo.tag_region       =   false
+incflo.tag_region       =   true
 incflo.tag_region_time  =   0.03
-incflo.tag_region_lo    =   -0.5  -0.5  -2.0
-incflo.tag_region_hi    =    0.5   0.5   0.0
+incflo.tag_region_lo    =   -0.25  -0.25  -0.5
+incflo.tag_region_hi    =    0.25   0.25   0.0
 amr.regrid_int          =   1
 incflo.tag_cell_type    =   true
 incflo.gradtemperr      =   8. 4. 1.
@@ -106,4 +109,6 @@ nodal_proj.verbose      =   0          # Nodal Projector
 scalar_diffusion.verbose  =   0         # Scalar Diffusion 
 tensor_diffusion.verbose  =   0         # Tensor Diffusion
 
-amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p
+incflo.initial_iterations =   0
+
+amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p cp thermal_conductivity
