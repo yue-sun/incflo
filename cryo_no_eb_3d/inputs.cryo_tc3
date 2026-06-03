@@ -60,7 +60,7 @@ incflo.cryo_temp_eth    =   90.0
 #.......................................#
 amr.n_cell              =   16 16 32  # Grid cells at coarsest AMRlevel
 amr.max_level           =   2           # Max AMR level in hierarchy 
-amr.ref_ratio           =   4 2 4 4
+amr.ref_ratio           =   4 4 4 4
 amr.max_grid_size       =   16 16 16  # Max grid size at AMR levels
 amr.blocking_factor     =   32           # Blocking factor for grids
 amr.grid_eff            =   0.7 
@@ -68,12 +68,12 @@ amr.n_error_buf         =   4
 
 incflo.tag_region       =   true
 incflo.tag_region_time  =   0.03
-incflo.tag_region_lo    =   -0.2  -0.2  -4.0
-incflo.tag_region_hi    =    0.2   0.2   0.0
-#amr.regrid_int          =   1
-incflo.tag_cell_type    =   false
-#incflo.gradtemperr      =   8. 4. 1.
-#incflo.gradspeederr     =   1. 0.1 0.01
+incflo.tag_region_lo    =   -0.1  -0.1  -0.2
+incflo.tag_region_hi    =    0.1   0.1   0.0
+amr.regrid_int          =   1
+incflo.tag_cell_type    =   true
+incflo.gradtemperr      =   8. 4. 1.
+incflo.gradspeederr     =   1. 0.1 0.01
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #

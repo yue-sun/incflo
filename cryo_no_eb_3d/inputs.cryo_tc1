@@ -68,12 +68,12 @@ amr.n_error_buf         =   4
 
 incflo.tag_region       =   true
 incflo.tag_region_time  =   0.03
-incflo.tag_region_lo    =   -0.1  -0.1  -4.0
+incflo.tag_region_lo    =   -0.1  -0.1  -0.2
 incflo.tag_region_hi    =    0.1   0.1   0.0
-#amr.regrid_int          =   1
-incflo.tag_cell_type    =   false
-#incflo.gradtemperr      =   8. 4. 1.
-#incflo.gradspeederr     =   1. 0.1 0.01
+amr.regrid_int          =   1
+incflo.tag_cell_type    =   true
+incflo.gradtemperr      =   8. 4. 1.
+incflo.gradspeederr     =   1. 0.1 0.01
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #
