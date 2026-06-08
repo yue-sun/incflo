@@ -134,12 +134,13 @@ void incflo::fillpatch_cell_type (int lev, Real time, iMultiFab& cell_type, int 
             (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
         PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > fphysbc
             (geom[lev], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
-#ifdef AMREX_USE_EB
-        Interpolater* mapper = (EBFactory(0).isAllRegular()) ?
-            (Interpolater*)(&cell_cons_interp) : (Interpolater*)(&eb_cell_cons_interp);
-#else
-        Interpolater* mapper = &cell_cons_interp;
-#endif
+        // cell_type is a categorical material label, not a continuous field:
+        // linear (conservative) interpolation across a material boundary would
+        // synthesize codes that never existed (e.g. blending disk -4 and sample
+        // 0 produces -2/-3, i.e. thermocouple/EM-grid), giving wrong cp/k at
+        // coarse-fine interfaces. Use piecewise-constant interpolation so a fine
+        // cell simply inherits its coarse parent's code.
+        Interpolater* mapper = &pc_interp;
         FillPatchTwoLevels(cell_type_real, IntVect(ng), time,
                            {&cell_type_old_coarse_real, &cell_type_new_coarse_real},
                            {m_t_old[lev-1], m_t_new[lev-1]},
@@ -355,12 +356,10 @@ void incflo::fillcoarsepatch_cell_type (int lev, Real time, iMultiFab& cell_type
         (geom[lev-1], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
     PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > fphysbc
         (geom[lev], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
-#ifdef AMREX_USE_EB
-    Interpolater* mapper = (EBFactory(0).isAllRegular()) ?
-        (Interpolater*)(&cell_cons_interp) : (Interpolater*)(&eb_cell_cons_interp);
-#else
-    Interpolater* mapper = &cell_cons_interp;
-#endif
+    // Piecewise-constant interpolation for the categorical cell_type label; see
+    // the note in fillpatch_cell_type. Linear interpolation here would fabricate
+    // spurious material codes at coarse-fine and material boundaries.
+    Interpolater* mapper = &pc_interp;
     amrex::InterpFromCoarseLevel(cell_type_real, IntVect(ng), time,
                                  cell_type_coarse_real, 0, 0, 1,
                                  geom[lev-1], geom[lev],

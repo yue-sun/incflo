@@ -213,7 +213,8 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
 
         smooth_temperature_property_at_interfaces(lev, *mf,
                                                   temp_iface_smooth_iters,
-                                                  temp_iface_smooth_weight);
+                                                  temp_iface_smooth_weight,
+                                                  lev > 0 ? tem_eta[lev-1] : nullptr);
     }
 
 }

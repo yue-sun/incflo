@@ -1,5 +1,8 @@
 #include <incflo.H>
+#include <prob_bc.H>
 #include <cryo/cryo_properties.H>
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_Interpolater.H>
 
 using namespace amrex;
 
@@ -71,7 +74,8 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
 
     smooth_temperature_property_at_interfaces(lev, cp,
                                               temp_iface_smooth_iters,
-                                              temp_iface_smooth_weight);
+                                              temp_iface_smooth_weight,
+                                              lev > 0 ? &m_leveldata[lev-1]->cp : nullptr);
 }
 
 void incflo::get_temperature_property_smoothing (int& smooth_iters,
@@ -92,7 +96,8 @@ void incflo::get_temperature_property_smoothing (int& smooth_iters,
 void incflo::smooth_temperature_property_at_interfaces (int lev,
                                                         MultiFab& property,
                                                         int smooth_iters,
-                                                        Real smooth_weight) const
+                                                        Real smooth_weight,
+                                                        MultiFab const* coarse_property) const
 {
     property.FillBoundary(geom[lev].periodicity());
 
@@ -109,13 +114,37 @@ void incflo::smooth_temperature_property_at_interfaces (int lev,
     auto const domhi = ubound(geom[lev].Domain());
     constexpr Real property_floor = Real(1.0e-300);
 
+    // On refined levels the smoothing stencil reaches into ghost cells at
+    // coarse-fine boundaries. FillBoundary only fills same-level/periodic
+    // ghosts, leaving those coarse-fine ghosts at the cp.setVal(m_cp) baseline,
+    // which the log-average then drags real interface values toward (the cause
+    // of the spurious low cp/k "between layers"). Interpolate the property from
+    // the coarse level into those ghosts instead. cp/k are continuous fields,
+    // so conservative-linear interpolation is appropriate here.
+    bool const do_xlevel = (lev > 0 && coarse_property != nullptr);
+    const auto& bcrec = get_density_bcrec();
+    PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > cphysbc
+        (geom[do_xlevel ? lev-1 : lev], bcrec,
+         IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+    PhysBCFunct<GpuBndryFuncFab<IncfloDenFill> > fphysbc
+        (geom[lev], bcrec, IncfloDenFill{m_probtype, m_bc_density, m_bc_velocity});
+
     MultiFab property_old(property.boxArray(), property.DistributionMap(), 1,
                           property.nGrowVect(), MFInfo(), property.Factory());
 
     for (int iter = 0; iter < smooth_iters; ++iter)
     {
         MultiFab::Copy(property_old, property, 0, 0, 1, property.nGrowVect());
-        property_old.FillBoundary(geom[lev].periodicity());
+        if (do_xlevel) {
+            FillPatchTwoLevels(property_old, property_old.nGrowVect(), m_cur_time,
+                               {const_cast<MultiFab*>(coarse_property)}, {m_cur_time},
+                               {&property}, {m_cur_time},
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               cphysbc, 0, fphysbc, 0,
+                               refRatio(lev-1), &cell_cons_interp, bcrec, 0);
+        } else {
+            property_old.FillBoundary(geom[lev].periodicity());
+        }
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

@@ -359,7 +359,8 @@ public:
     void smooth_temperature_property_at_interfaces (int lev,
                                                     amrex::MultiFab& property,
                                                     int smooth_iters,
-                                                    amrex::Real smooth_weight) const;
+                                                    amrex::Real smooth_weight,
+                                                    amrex::MultiFab const* coarse_property = nullptr) const;
 
 #ifdef AMREX_USE_EB
     ///////////////////////////////////////////////////////////////////////////
