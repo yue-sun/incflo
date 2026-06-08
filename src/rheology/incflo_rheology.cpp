@@ -1,5 +1,6 @@
 #include <incflo.H>
 #include <incflo_derive_K.H>
+#include <cryo/cryo_properties.H>
 
 using namespace amrex;
 
@@ -159,6 +160,7 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
         mf->setVal(m_mu_T);
 
         auto& ct_mf = m_leveldata[lev]->cell_type;
+        auto& T_mf  = m_leveldata[lev]->temperature;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -168,23 +170,43 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
             Box const& bx = mfi.tilebox();
             Array4<Real>      const& eta = mf->array(mfi);
             Array4<int const> const& ct  = ct_mf.const_array(mfi);
+            Array4<Real const> const& T_a = T_mf.const_array(mfi);
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (ct(i, j, k) == -2) { // thermocouple
-                    eta(i, j, k) = conservative_temperature ? k_tcp : kappa_tcp;
+                if (ct(i, j, k) == -2) { // thermocouple — temperature-dependent
+                    if (conservative_temperature) {
+                        // lambda [W/(m·K)] -> simulation units
+                        eta(i, j, k) = Real(cryo_props::lam_typeK(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        // kappa = lambda / (rho * cp), all in simulation units
+                        Real const lam_sim = Real(cryo_props::lam_typeK(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_tcp * cp_sim);
+                    }
                 } else if (ct(i, j, k) == -3) { // EM grid
-                    eta(i, j, k) = conservative_temperature ? k_plu : kappa_plu;
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_plu : cryo_props::kappa_plu;
                 } else if (ct(i, j, k) == -4) { // sapphire disk
-                    eta(i, j, k) = conservative_temperature ? k_sap : kappa_sap;
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_sap : cryo_props::kappa_sap;
                 } else if (ct(i, j, k) == -5) { // diamond disk
-                    eta(i, j, k) = conservative_temperature ? k_dia : kappa_dia;
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_dia : cryo_props::kappa_dia;
                 } else if (ct(i, j, k) == -6) { // debug sphere (same as EM grid)
-                    eta(i, j, k) = conservative_temperature ? k_plu : kappa_plu;
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_plu : cryo_props::kappa_plu;
                 } else if (ct(i, j, k) >= 0) { // samples
-                    eta(i, j, k) = conservative_temperature ? k_sam : kappa_sam;
-                } else if (ct(i, j, k) == -1) { // liquid ethane
-                    eta(i, j, k) = conservative_temperature ? k_eth : kappa_eth;
+                    // TODO(sample-T-props): make the sample (water) conductivity
+                    // temperature-dependent, e.g. lam_water(T_a(i,j,k)) spline,
+                    // like the ethane branch below.
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_sam : cryo_props::kappa_sam;
+                } else if (ct(i, j, k) == -1) { // liquid ethane — temperature-dependent (NIST spline)
+                    if (conservative_temperature) {
+                        // lambda [W/(m·K)] -> simulation units
+                        eta(i, j, k) = Real(cryo_props::lam_ethane(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        // kappa = lambda / (rho * cp), all in simulation units
+                        Real const lam_sim = Real(cryo_props::lam_ethane(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_eth * cp_sim);
+                    }
                 }
             });
         }

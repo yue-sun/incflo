@@ -165,11 +165,15 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         Real zoff = R_sap_disk + plunge_disp;
         Real geom_sap_disk = x * x + (z - zoff) * (z - zoff);
         Real geom_sap_disk_thickness = amrex::Math::abs(y);
-        // Disk geometry
-        if (geom_sap_disk < R_sap_disk * R_sap_disk &&
-            geom_sap_disk_thickness < w_sap_disk)
+        // Disk geometry, plus an optional sample layer (water properties)
+        // coating its +y face; both move with the disk, so share kinematics.
+        bool const in_disk = geom_sap_disk_thickness < w_sap_disk;
+        bool const in_sample =
+            m_cryo_sample_layer && y >= w_sap_disk &&
+            y < w_sap_disk + m_cryo_sample_layer_thickness;
+        if (geom_sap_disk < R_sap_disk * R_sap_disk && (in_disk || in_sample))
         {
-            cell_type_ijk = -4;
+            cell_type_ijk = in_disk ? -4 : 0;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
@@ -188,11 +192,15 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         Real zoff = R_dia_disk + plunge_disp;
         Real geom_dia_disk = x * x + (z - zoff) * (z - zoff);
         Real geom_dia_disk_thickness = amrex::Math::abs(y);
-        // Disk geometry
-        if (geom_dia_disk < R_dia_disk * R_dia_disk &&
-            geom_dia_disk_thickness < w_dia_disk)
+        // Disk geometry, plus an optional sample layer (water properties)
+        // coating its +y face; both move with the disk, so share kinematics.
+        bool const in_disk = geom_dia_disk_thickness < w_dia_disk;
+        bool const in_sample =
+            m_cryo_sample_layer && y >= w_dia_disk &&
+            y < w_dia_disk + m_cryo_sample_layer_thickness;
+        if (geom_dia_disk < R_dia_disk * R_dia_disk && (in_disk || in_sample))
         {
-            cell_type_ijk = -5;
+            cell_type_ijk = in_disk ? -5 : 0;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
@@ -236,7 +244,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
 
         // The existing cryo setup uses cell_type -2 for thermocouple material.
         // Model the bead as a sphere centered on the plunge path.
-        Real const rtc1 = Real(0.05); // 100 um diameter -> 0.05 mm radius
+        Real const rtc1 = Real(0.0425); // 85 um diameter -> 0.0425 mm radius
         Real const zz = z - rtc1 + motion.depth;
         Real const geometry = x * x + y * y + zz * zz;
 
@@ -261,7 +269,7 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
 
         // The existing cryo setup uses cell_type -2 for thermocouple material.
         // Model the bead as a sphere centered on the plunge path.
-        Real const rtc1 = Real(0.2); // 400 um diameter -> 0.2 mm radius
+        Real const rtc1 = Real(0.21); // 420 um diameter -> 0.21 mm radius
         Real const zz = z - rtc1 + motion.depth;
         Real const geometry = x * x + y * y + zz * zz;
 
@@ -283,27 +291,27 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         // Map material density from cell type only for conservative temperature mode.
         if (cell_type_ijk == -1)
         {
-            rho_ijk = rho_eth;
+            rho_ijk = cryo_props::rho_eth;
         }
         else if (cell_type_ijk == -2)
         {
-            rho_ijk = rho_tcp;
+            rho_ijk = cryo_props::rho_tcp;
         }
         else if (cell_type_ijk == -3 || cell_type_ijk == -6)
         {
-            rho_ijk = rho_plu;
+            rho_ijk = cryo_props::rho_plu;
         }
         else if (cell_type_ijk == -4)
         {
-            rho_ijk = rho_sap;
+            rho_ijk = cryo_props::rho_sap;
         }
         else if (cell_type_ijk == -5)
         {
-            rho_ijk = rho_dia;
+            rho_ijk = cryo_props::rho_dia;
         }
         else if (cell_type_ijk >= 0)
         {
-            rho_ijk = rho_sam;
+            rho_ijk = cryo_props::rho_sam;
         }
     }
 #endif

@@ -1,4 +1,5 @@
 #include <incflo.H>
+#include <cryo/cryo_properties.H>
 
 using namespace amrex;
 
@@ -20,7 +21,7 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
 #endif
     for (MFIter mfi(cp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        Box const& bx = mfi.growntilebox();
+        Box const& bx = mfi.tilebox();
         Array4<Real> const& cp_a = cp.array(mfi);
 
         if (!conservative_temperature) {
@@ -33,30 +34,35 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
         }
 
 #ifdef INCFLO_SIM_CRYO
-        auto const& ct = ld.cell_type.const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        auto const& ct  = ld.cell_type.const_array(mfi);
+        auto const& T_a = ld.temperature.const_array(mfi);
+        ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (ct(i,j,k) == -2) {
-                cp_a(i,j,k) = cp_tcp;
+                // cp from spline [J/(g·K)] -> [J/(kg·K)] -> simulation units
+                cp_a(i,j,k) = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -3) {
-                cp_a(i,j,k) = cp_plu;
+                cp_a(i,j,k) = cryo_props::cp_plu;
             } else if (ct(i,j,k) == -4) {
-                cp_a(i,j,k) = cp_sap;
+                cp_a(i,j,k) = cryo_props::cp_sap;
             } else if (ct(i,j,k) == -5) {
-                cp_a(i,j,k) = cp_dia;
+                cp_a(i,j,k) = cryo_props::cp_dia;
             } else if (ct(i,j,k) == -6) {
-                cp_a(i,j,k) = cp_plu;
+                cp_a(i,j,k) = cryo_props::cp_plu;
             } else if (ct(i,j,k) == -1) {
-                cp_a(i,j,k) = cp_eth;
+                // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
+                cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) >= 0) {
-                cp_a(i,j,k) = cp_sam;
+                // TODO(sample-T-props): make the sample (water) cp temperature-
+                // dependent, e.g. cp_water(T_a(i,j,k)) spline, like ethane above.
+                cp_a(i,j,k) = cryo_props::cp_sam;
             } else {
                 cp_a(i,j,k) = m_cp;
             }
         });
 #else
         Real l_cp = m_cp;
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cp_a(i,j,k) = l_cp;
         });

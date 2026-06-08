@@ -108,7 +108,9 @@ void incflo::ApplyPredictor (bool incremental_projection)
     // Forcing terms for velocity, tracers, temperature
     Vector<MultiFab> vel_forces, tra_forces, tem_forces;
 
-    Vector<MultiFab> vel_eta, tra_eta, tem_eta;
+    Vector<MultiFab> vel_eta, tra_eta;
+    Vector<MultiFab*> tem_eta;
+    Vector<MultiFab const*> tem_eta_const;
 
     // *************************************************************************************
     // Allocate space for the forcing terms and viscosity / diffusive coefficients
@@ -128,7 +130,8 @@ void incflo::ApplyPredictor (bool incremental_projection)
         if (m_use_temperature) {
             tem_forces.emplace_back(grids[lev], dmap[lev], 1, nghost_force(),
                                   MFInfo(), Factory(lev));
-            tem_eta.emplace_back(grids[lev], dmap[lev], 1, nghost_eta, MFInfo(), Factory(lev));
+            tem_eta.push_back(&(m_leveldata[lev]->thermal_conductivity));
+            tem_eta_const.push_back(&(m_leveldata[lev]->thermal_conductivity));
         }
     }
 
@@ -161,9 +164,10 @@ void incflo::ApplyPredictor (bool incremental_projection)
     }
     if (m_use_temperature)
     {
-        compute_temperature_diff_coeff(m_cur_time, GetVecOfPtrs(tem_eta));
+        compute_temperature_diff_coeff(m_cur_time, tem_eta);
+        copy_from_new_to_old_thermal_conductivity();
         if (need_divtau()) {
-            compute_laps_T(get_laps_tem_old(), get_temperature_old_const(), GetVecOfConstPtrs(tem_eta));
+            compute_laps_T(get_laps_tem_old(), get_temperature_old_const(), tem_eta_const);
         }
     }
 
@@ -220,7 +224,7 @@ void incflo::ApplyPredictor (bool incremental_projection)
 #ifdef INCFLO_SIM_CRYO
     // Zero solid-cell velocity before projection so the divergence source term
     // (RHS of the Poisson equation) is consistent with the no-slip
-    cryo_update();
+    cryo_update(new_time);
 #endif
 
     // **********************************************************************************************

@@ -221,7 +221,7 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
                     has_solid_cells = 1;
                 }
 
-                Real alpha_ref = kappa_eth;
+                Real alpha_ref = cryo_props::kappa_eth;
                 if (lev_has_nonfluid != 0)
                 {
                     int has_tcp = amrex::ReduceMax(cell_type, 0,
@@ -281,13 +281,13 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
                                                    });
 
                     alpha_ref = Real(0.0);
-                    if (has_tcp != 0) alpha_ref = amrex::max(alpha_ref, kappa_tcp);
-                    if (has_plu != 0) alpha_ref = amrex::max(alpha_ref, kappa_plu);
-                    if (has_sap != 0) alpha_ref = amrex::max(alpha_ref, kappa_sap);
-                    if (has_dia != 0) alpha_ref = amrex::max(alpha_ref, kappa_dia);
-                    if (has_sam != 0) alpha_ref = amrex::max(alpha_ref, kappa_sam);
+                    if (has_tcp != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_tcp);
+                    if (has_plu != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_plu);
+                    if (has_sap != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_sap);
+                    if (has_dia != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_dia);
+                    if (has_sam != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_sam);
                     if (alpha_ref <= Real(0.0)) {
-                        alpha_ref = kappa_eth;
+                        alpha_ref = cryo_props::kappa_eth;
                     }
                 }
 

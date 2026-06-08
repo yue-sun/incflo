@@ -96,8 +96,9 @@ void incflo::ApplyCorrector()
     // We only reach the corrector if advection_type == MOL which means we don't use the forces
     //    in constructing the advection term
     // **********************************************************************************************
-    Vector<MultiFab> vel_forces, tra_forces;
+    Vector<MultiFab> vel_forces, tra_forces, tem_forces;
     Vector<MultiFab> vel_eta, tra_eta;
+    Vector<MultiFab*> tem_eta;
     for (int lev = 0; lev <= finest_level; ++lev) {
         vel_forces.emplace_back(grids[lev], dmap[lev], AMREX_SPACEDIM, nghost_force(),
                                 MFInfo(), Factory(lev));
@@ -108,6 +109,11 @@ void incflo::ApplyCorrector()
         vel_eta.emplace_back(grids[lev], dmap[lev], 1, 1, MFInfo(), Factory(lev));
         if (m_advect_tracer) {
             tra_eta.emplace_back(grids[lev], dmap[lev], m_ntrac, 1, MFInfo(), Factory(lev));
+        }
+        if (m_use_temperature) {
+            tem_forces.emplace_back(grids[lev], dmap[lev], 1, nghost_force(),
+                                    MFInfo(), Factory(lev));
+            tem_eta.push_back(&(m_leveldata[lev]->thermal_conductivity));
         }
     }
 
@@ -125,10 +131,12 @@ void incflo::ApplyCorrector()
     // Compute the explicit "new" advective terms R_u^(n+1,*), R_r^(n+1,*) and R_t^(n+1,*)
     // *************************************************************************************
     compute_convective_term(get_conv_velocity_new(), get_conv_density_new(), get_conv_tracer_new(),
+                            get_conv_temperature_new(),
                             get_velocity_new_const(), get_density_new_const(), get_tracer_new_const(),
+                            get_temperature_new_const(),
                             AMREX_D_DECL(GetVecOfPtrs(u_mac), GetVecOfPtrs(v_mac),
                             GetVecOfPtrs(w_mac)),
-                            {}, {}, new_time);
+                            {}, {}, {}, new_time);
 
     // *************************************************************************************
     // Compute viscosity / diffusive coefficients
@@ -153,13 +161,20 @@ void incflo::ApplyCorrector()
     update_tracer(StepType::Corrector, tra_eta, tra_forces);
 
     // *************************************************************************************
+    // Update temperature
+    // *************************************************************************************
+    if (m_use_temperature) {
+        update_temperature(StepType::Corrector, tem_eta, tem_forces);
+    }
+
+    // *************************************************************************************
     // Update velocity
     // *************************************************************************************
     update_velocity(StepType::Corrector, vel_eta, vel_forces);
 #ifdef INCFLO_SIM_CRYO
     // Zero solid-cell velocity before projection so the divergence source term
     // (RHS of the Poisson equation) is consistent with the no-slip
-    cryo_update();
+    cryo_update(new_time);
 #endif
 
     // **********************************************************************************************

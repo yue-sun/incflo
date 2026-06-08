@@ -59,22 +59,22 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         if (conservative_temperature) {
             if (cell_type_ijk == -1) {
                 // -1: liquid ethane (fluid)
-                rho_ijk = rho_eth;
+                rho_ijk = cryo_props::rho_eth;
             } else if (cell_type_ijk == -2) {
                 // -2: thermocouple (solid)
-                rho_ijk = rho_tcp;
+                rho_ijk = cryo_props::rho_tcp;
             } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
                 // -3: EM grid (solid), -6: debug sphere
-                rho_ijk = rho_plu;
+                rho_ijk = cryo_props::rho_plu;
             } else if (cell_type_ijk == -4) {
                 // -4: sapphire grid (solid)
-                rho_ijk = rho_sap;
+                rho_ijk = cryo_props::rho_sap;
             } else if (cell_type_ijk == -5) {
                 // -5: diamond grid (solid)
-                rho_ijk = rho_dia;
+                rho_ijk = cryo_props::rho_dia;
             } else if (cell_type_ijk >= 0) {
                 // >=0: sample (solid)
-                rho_ijk = rho_sam;
+                rho_ijk = cryo_props::rho_sam;
             }
         }
 #endif

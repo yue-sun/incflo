@@ -6,13 +6,16 @@
 namespace cryo_tc
 {
 
-struct ThermocoupleMotion
-{
-    amrex::Real speed = amrex::Real(0.0);
-    amrex::Real depth = amrex::Real(0.0);
-};
+    // Prescribed thermocouple-bead kinematics measured in the linear motor
+    // experiment. The spline data lives in cryo_tc_experiment.cpp; material
+    // thermal properties are in cryo_properties.H, not here.
+    struct ThermocoupleMotion
+    {
+        amrex::Real speed = amrex::Real(0.0);
+        amrex::Real depth = amrex::Real(0.0);
+    };
 
-ThermocoupleMotion evaluate_motion(amrex::Real time);
+    ThermocoupleMotion evaluate_motion(amrex::Real time);
 
 } // namespace cryo_tc
 

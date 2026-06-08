@@ -21,6 +21,11 @@
 #include <DiffusionTensorOp.H>
 #include <DiffusionScalarOp.H>
 
+#ifdef INCFLO_SIM_CRYO
+#include "cryo_properties.H"
+#include "cryo_tc_experiment.H"
+#endif
+
 enum struct StepType {
     Predictor, Corrector
 };
@@ -782,6 +787,9 @@ private:
     // ***************************************************************
     bool m_sim_cryo = false;
     int m_cryo_geometry = 0;
+    // Optional sample layer (water thermal properties) coating the disk faces
+    bool m_cryo_sample_layer = false;
+    amrex::Real m_cryo_sample_layer_thickness = 0.;
     amrex::Vector<amrex::Real> m_cryo_plunge_vel;
     amrex::Vector<amrex::Real> m_cryo_plunge_time;
     amrex::Real m_cryo_temp_entry = 0.;
