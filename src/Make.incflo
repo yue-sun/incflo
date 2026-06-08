@@ -1,6 +1,13 @@
 
 AMREX_XSDK = TRUE
 
+# Silence GCC's -Wpsabi notes ("parameter passing for argument of type ...
+# changed to match C++14 in GCC 10.1"). These come from AMReX headers, are
+# pure ABI-compatibility notices, and are harmless for a self-consistent build.
+ifeq ($(COMP),gnu)
+  XTRA_CXXFLAGS += -Wno-psabi
+endif
+
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
 #These are the directories in incflo/src
