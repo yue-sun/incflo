@@ -1,7 +1,7 @@
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #                 TC3 CASE              #
 #.......................................#
-stop_time               =   5.0       # Max (simulated) time to evolve
+stop_time               =   4.0       # Max (simulated) time to evolve
 max_step                =  -1           # Max number of time steps
 steady_state            =   0           # Steady-state solver? 
 
@@ -53,27 +53,27 @@ incflo.dt_min           =   1e-3
 incflo.cryo_plunge_vel  =   -1.0  1.0  0.0
 incflo.cryo_plunge_time =    0.0  4.0  4.5
 incflo.cryo_temp_entry  =   244.0
-incflo.cryo_temp_eth    =   90.0
+incflo.cryo_temp_eth    =   95.6
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
 amr.n_cell              =   16 16 32  # Grid cells at coarsest AMRlevel
 amr.max_level           =   2           # Max AMR level in hierarchy 
-amr.ref_ratio           =   4 2 4 4
+amr.ref_ratio           =   4 4 4 4
 amr.max_grid_size       =   16 16 16  # Max grid size at AMR levels
-amr.blocking_factor     =   32           # Blocking factor for grids
-amr.grid_eff            =   0.7 
-amr.n_error_buf         =   4
+amr.blocking_factor     =   8           # Blocking factor for grids
+amr.grid_eff            =   0.9 
+amr.n_error_buf         =   2 2
 
 incflo.tag_region       =   true
 incflo.tag_region_time  =   0.03
-incflo.tag_region_lo    =   -0.2  -0.2  -4.0
-incflo.tag_region_hi    =    0.2   0.2   0.0
-#amr.regrid_int          =   1
-incflo.tag_cell_type    =   false
-#incflo.gradtemperr      =   8. 4. 1.
-#incflo.gradspeederr     =   1. 0.1 0.01
+incflo.tag_region_lo    =   -0.1  -0.1  -0.2
+incflo.tag_region_hi    =    0.1   0.1   0.0
+amr.regrid_int          =   2
+incflo.tag_cell_type    =   true
+incflo.gradtemperr      =   16. 8. 2.
+incflo.gradspeederr     =   2. 0.2 0.02
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #              GEOMETRY                 #
