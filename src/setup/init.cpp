@@ -180,6 +180,8 @@ void incflo::ReadParameters ()
         pp.query("sim_cryo", m_sim_cryo);
         if (m_sim_cryo) {
             pp.query("cryo_geometry", m_cryo_geometry);
+            pp.query("cryo_sample_layer", m_cryo_sample_layer);
+            pp.query("cryo_sample_layer_thickness", m_cryo_sample_layer_thickness);
             pp.query("dt_min", m_dt_min);
             // Parse plunging protocol
             int n_plunge_vel = pp.countval("cryo_plunge_vel");
