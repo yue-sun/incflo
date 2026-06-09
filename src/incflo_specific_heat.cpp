@@ -45,13 +45,17 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
                 // cp from spline [J/(g·K)] -> [J/(kg·K)] -> simulation units
                 cp_a(i,j,k) = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -3) {
-                cp_a(i,j,k) = cryo_props::cp_plu;
+                // gold EM grid: cp(T) [J/(g·K)] -> [J/(kg·K)] -> simulation units
+                cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -4) {
-                cp_a(i,j,k) = cryo_props::cp_sap;
+                // sapphire disk: cp(T) from the Ditmars (1982) analytic law
+                cp_a(i,j,k) = Real(cryo_grid::cp_sap(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -5) {
-                cp_a(i,j,k) = cryo_props::cp_dia;
+                // diamond disk: cp(T) from the DeSorbo (1953) spline
+                cp_a(i,j,k) = Real(cryo_grid::cp_dia(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -6) {
-                cp_a(i,j,k) = cryo_props::cp_plu;
+                // gold plunger / debug sphere (same material as the EM grid)
+                cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
             } else if (ct(i,j,k) == -1) {
                 // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
                 cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;

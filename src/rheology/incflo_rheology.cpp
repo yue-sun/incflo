@@ -184,14 +184,38 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
                         Real const cp_sim  = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
                         eta(i, j, k) = lam_sim / (cryo_props::rho_tcp * cp_sim);
                     }
-                } else if (ct(i, j, k) == -3) { // EM grid
-                    eta(i, j, k) = conservative_temperature ? cryo_props::k_plu : cryo_props::kappa_plu;
-                } else if (ct(i, j, k) == -4) { // sapphire disk
-                    eta(i, j, k) = conservative_temperature ? cryo_props::k_sap : cryo_props::kappa_sap;
-                } else if (ct(i, j, k) == -5) { // diamond disk
-                    eta(i, j, k) = conservative_temperature ? cryo_props::k_dia : cryo_props::kappa_dia;
-                } else if (ct(i, j, k) == -6) { // debug sphere (same as EM grid)
-                    eta(i, j, k) = conservative_temperature ? cryo_props::k_plu : cryo_props::kappa_plu;
+                } else if (ct(i, j, k) == -3) { // EM grid (gold) — temperature-dependent
+                    if (conservative_temperature) {
+                        eta(i, j, k) = Real(cryo_grid::k_gold(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        Real const lam_sim = Real(cryo_grid::k_gold(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_plu * cp_sim);
+                    }
+                } else if (ct(i, j, k) == -4) { // sapphire disk — temperature-dependent
+                    if (conservative_temperature) {
+                        eta(i, j, k) = Real(cryo_grid::k_sap(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        Real const lam_sim = Real(cryo_grid::k_sap(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_grid::cp_sap(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_sap * cp_sim);
+                    }
+                } else if (ct(i, j, k) == -5) { // diamond disk — temperature-dependent
+                    if (conservative_temperature) {
+                        eta(i, j, k) = Real(cryo_grid::k_dia(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        Real const lam_sim = Real(cryo_grid::k_dia(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_grid::cp_dia(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_dia * cp_sim);
+                    }
+                } else if (ct(i, j, k) == -6) { // debug sphere / plunger (gold)
+                    if (conservative_temperature) {
+                        eta(i, j, k) = Real(cryo_grid::k_gold(T_a(i,j,k))) * cryo_props::conv_k;
+                    } else {
+                        Real const lam_sim = Real(cryo_grid::k_gold(T_a(i,j,k))) * cryo_props::conv_k;
+                        Real const cp_sim  = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                        eta(i, j, k) = lam_sim / (cryo_props::rho_plu * cp_sim);
+                    }
                 } else if (ct(i, j, k) >= 0) { // samples
                     // TODO(sample-T-props): make the sample (water) conductivity
                     // temperature-dependent, e.g. lam_water(T_a(i,j,k)) spline,
