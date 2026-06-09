@@ -35,9 +35,6 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
     Real forc_cfl = Real(0.0);
     Real therm_cfl = Real(0.0);
     bool apply_thermal_dt_constraint = true;
-#ifdef INCFLO_SIM_CRYO
-    int has_solid_cells = 0;
-#endif
 
     bool const conservative_temperature =
         !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
@@ -198,103 +195,12 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
             Real therm_lev = Real(0.0);
             MultiFab const& eta_T = m_leveldata[lev]->thermal_conductivity;
 
-#ifdef INCFLO_SIM_CRYO
-            if (m_sim_cryo)
-            {
-                iMultiFab const& cell_type = m_leveldata[lev]->cell_type;
-
-                int lev_has_nonfluid = amrex::ReduceMax(cell_type, 0,
-                                                        [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                                  Array4<int const> const& ct) -> int
-                                                        {
-                                                            int mx = 0;
-                                                            amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                            {
-                                                                if (ct(i,j,k) != -1) {
-                                                                    mx = 1;
-                                                                }
-                                                            });
-                                                            return mx;
-                                                        });
-
-                if (lev_has_nonfluid != 0) {
-                    has_solid_cells = 1;
-                }
-
-                Real alpha_ref = cryo_props::kappa_eth;
-                if (lev_has_nonfluid != 0)
-                {
-                    int has_tcp = amrex::ReduceMax(cell_type, 0,
-                                                   [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                             Array4<int const> const& ct) -> int
-                                                   {
-                                                       int mx = 0;
-                                                       amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                       {
-                                                           if (ct(i,j,k) == -2) { mx = 1; }
-                                                       });
-                                                       return mx;
-                                                   });
-                    int has_plu = amrex::ReduceMax(cell_type, 0,
-                                                   [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                             Array4<int const> const& ct) -> int
-                                                   {
-                                                       int mx = 0;
-                                                       amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                       {
-                                                           if (ct(i,j,k) == -3 || ct(i,j,k) == -6) { mx = 1; }
-                                                       });
-                                                       return mx;
-                                                   });
-                    int has_sap = amrex::ReduceMax(cell_type, 0,
-                                                   [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                             Array4<int const> const& ct) -> int
-                                                   {
-                                                       int mx = 0;
-                                                       amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                       {
-                                                           if (ct(i,j,k) == -4) { mx = 1; }
-                                                       });
-                                                       return mx;
-                                                   });
-                    int has_dia = amrex::ReduceMax(cell_type, 0,
-                                                   [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                             Array4<int const> const& ct) -> int
-                                                   {
-                                                       int mx = 0;
-                                                       amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                       {
-                                                           if (ct(i,j,k) == -5) { mx = 1; }
-                                                       });
-                                                       return mx;
-                                                   });
-                    int has_sam = amrex::ReduceMax(cell_type, 0,
-                                                   [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                             Array4<int const> const& ct) -> int
-                                                   {
-                                                       int mx = 0;
-                                                       amrex::Loop(b, [=, &mx](int i, int j, int k) noexcept
-                                                       {
-                                                           if (ct(i,j,k) >= 0) { mx = 1; }
-                                                       });
-                                                       return mx;
-                                                   });
-
-                    alpha_ref = Real(0.0);
-                    if (has_tcp != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_tcp);
-                    if (has_plu != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_plu);
-                    if (has_sap != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_sap);
-                    if (has_dia != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_dia);
-                    if (has_sam != 0) alpha_ref = amrex::max(alpha_ref, cryo_props::kappa_sam);
-                    if (alpha_ref <= Real(0.0)) {
-                        alpha_ref = cryo_props::kappa_eth;
-                    }
-                }
-
-                therm_lev = alpha_ref;
-            }
-            else
-#endif
+            // Bound the diffusive timestep by the thermal diffusivity actually
+            // realized this step.  eta_T / cp / rho already hold the temperature-
+            // dependent material properties (filled by rheology + compute_cp for
+            // every cell type, including the cryo solids), so scanning the live
+            // fields tracks the true peak alpha = k/(rho*cp) as the disk cools,
+            // instead of a static worst case over the whole 90-290 K table.
             {
                 if (conservative_temperature)
                 {
