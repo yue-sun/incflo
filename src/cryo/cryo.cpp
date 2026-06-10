@@ -24,6 +24,9 @@ void incflo::cryo_update(Real time)
 
 #elif (AMREX_SPACEDIM == 3)
 
+    Real velz_plunge, plunge_disp;
+    cryo_plunge_state(time, velz_plunge, plunge_disp);
+
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto &ld = *m_leveldata[lev];
@@ -60,6 +63,14 @@ void incflo::cryo_update(Real time)
                                                    cell_type_ijk,
                                                    rho_ijk,
                                                time, dx, problo, probhi);
+                            // Additive wiper/obstacle primitives
+                            if (m_cryo_n_solids > 0)
+                            {
+                                cryo_apply_solids(x, y, z,
+                                                  velx, vely, velz,
+                                                  cell_type_ijk, rho_ijk,
+                                                  time, velz_plunge, plunge_disp);
+                            }
                             // Set thermal properties and top temperature B.C.
                             cryo_set_thermal(i, j, k, x, y, z,
                                              cell_type_ijk,
@@ -71,33 +82,11 @@ void incflo::cryo_update(Real time)
 #endif
 }
 
-void incflo::cryo_set_geom_velocity(int i, int j, int k,
-                                    Real x, Real y, Real z,
-                                    Real &velx, Real &vely, Real &velz,
-                                    int &cell_type_ijk,
-                                    Real &rho_ijk,
-                                    Real time,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
+void incflo::cryo_plunge_state(Real time, Real &velz_plunge, Real &plunge_disp) const
 {
-    BL_PROFILE("incflo::cryo_set_geom_velocity");
-
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
-#if (AMREX_SPACEDIM == 2)
-    amrex::Abort("cryo_update: not implemented in 2D");
-
-#elif (AMREX_SPACEDIM == 3)
-
-    // ***************************************************************
-    // Plunging protocols
-    // ***************************************************************
-
     // Default plunging protocol
-    Real velz_plunge = Real(-1.0);
-    Real plunge_disp = velz_plunge * time;
+    velz_plunge = Real(-1.0);
+    plunge_disp = velz_plunge * time;
 
     // Load prescribed plunging protocol if provided
     if (!m_cryo_plunge_vel.empty() &&
@@ -133,6 +122,179 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
             }
         }
     }
+}
+
+void incflo::cryo_read_solids()
+{
+    ParmParse pp("incflo");
+    pp.query("cryo_n_solids", m_cryo_n_solids);
+    m_cryo_solids.resize(m_cryo_n_solids);
+
+    for (int n = 0; n < m_cryo_n_solids; ++n)
+    {
+        auto &s = m_cryo_solids[n];
+        std::string const pre = "cryo_solid_" + std::to_string(n) + "_";
+
+        std::string shape = "bar";
+        pp.query((pre + "shape").c_str(), shape);
+        if (shape == "bar") { s.shape = 0; }
+        else if (shape == "vane") { s.shape = 1; }
+        else if (shape == "serration") { s.shape = 2; }
+        else { amrex::Abort(pre + "shape must be bar, vane, or serration"); }
+
+        pp.query((pre + "material").c_str(), s.material);
+        if (s.material != -2 && s.material != -3 && s.material != -4 &&
+            s.material != -5 && s.material != -6)
+        {
+            amrex::Abort(pre + "material must be a solid cell_type (-2..-6)");
+        }
+
+        Vector<Real> v3;
+        pp.queryarr((pre + "center").c_str(), v3);
+        if (v3.size() == 3) { s.cx = v3[0]; s.cy = v3[1]; s.cz = v3[2]; }
+        v3.clear();
+        pp.queryarr((pre + "half").c_str(), v3);
+        if (v3.size() == 3) { s.hx = v3[0]; s.hy = v3[1]; s.hz = v3[2]; }
+
+        Real angle_deg = Real(0.0);
+        pp.query((pre + "angle").c_str(), angle_deg);
+        s.angle = angle_deg * Real(M_PI / 180.0);
+
+        pp.query((pre + "osc_axis").c_str(), s.osc_axis);
+        pp.query((pre + "osc_amp").c_str(), s.osc_amp);
+        pp.query((pre + "osc_freq").c_str(), s.osc_freq);
+        pp.query((pre + "osc_phase").c_str(), s.osc_phase);
+        if (s.osc_axis != -1 && s.osc_axis != 0 && s.osc_axis != 2)
+        {
+            amrex::Abort(pre + "osc_axis must be -1 (none), 0 (x), or 2 (z)");
+        }
+
+        pp.query((pre + "serr_radius").c_str(), s.serr_R);
+        pp.query((pre + "serr_zc").c_str(), s.serr_zc);
+        pp.query((pre + "serr_depth").c_str(), s.serr_depth);
+        pp.query((pre + "serr_nteeth").c_str(), s.serr_nteeth);
+        pp.query((pre + "serr_duty").c_str(), s.serr_duty);
+
+        if (s.shape != 2 && (s.hx <= Real(0.0) || s.hy <= Real(0.0) || s.hz <= Real(0.0)))
+        {
+            amrex::Abort(pre + "half must be three positive extents for bar/vane");
+        }
+        if (s.shape == 2 && (s.serr_depth <= Real(0.0) || s.serr_nteeth <= 0))
+        {
+            amrex::Abort(pre + "serration needs serr_depth > 0 and serr_nteeth > 0");
+        }
+    }
+}
+
+void incflo::cryo_apply_solids(Real x, Real y, Real z,
+                               Real &velx, Real &vely, Real &velz,
+                               int &cell_type_ijk, Real &rho_ijk,
+                               Real time,
+                               Real velz_plunge, Real plunge_disp) const
+{
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
+
+    Real const zp = z - plunge_disp; // co-moving frame
+
+    for (int n = 0; n < m_cryo_n_solids; ++n)
+    {
+        auto const &s = m_cryo_solids[n];
+
+        if (s.shape == 2)
+        {
+            // Serration: carve notches from the leading (bottom, z' < zc) arc
+            // back to fluid. Velocity is left as-is, matching cells the moving
+            // solid vacates.
+            if (cell_type_ijk == -1) { continue; }
+            Real const rx = x;
+            Real const rz = zp - s.serr_zc;
+            if (rz >= Real(0.0)) { continue; }            // trailing half: untouched
+            Real const r2 = rx * rx + rz * rz;
+            Real const Ri = s.serr_R - s.serr_depth;
+            if (r2 <= Ri * Ri) { continue; }              // inside tooth root circle
+            Real const theta = std::atan2(rx, -rz);       // 0 at bottom of arc
+            Real frac = theta * Real(s.serr_nteeth) / Real(2.0 * M_PI);
+            frac -= std::floor(frac);
+            if (frac >= s.serr_duty)
+            {
+                cell_type_ijk = -1;
+                if (conservative_temperature) { rho_ijk = cryo_props::rho_eth; }
+            }
+            continue;
+        }
+
+        // bar / vane: box test in the (possibly oscillation-shifted, possibly
+        // rotated) co-moving frame
+        Real offx = Real(0.0), offz = Real(0.0);
+        Real voscx = Real(0.0), voscz = Real(0.0);
+        if (s.osc_axis >= 0 && s.osc_amp != Real(0.0) && s.osc_freq != Real(0.0))
+        {
+            Real const w = Real(2.0 * M_PI) * s.osc_freq;
+            Real const d = s.osc_amp * std::sin(w * time + s.osc_phase);
+            Real const v = s.osc_amp * w * std::cos(w * time + s.osc_phase);
+            if (s.osc_axis == 0) { offx = d; voscx = v; }
+            else                 { offz = d; voscz = v; }
+        }
+
+        Real px = x - (s.cx + offx);
+        Real const py = y - s.cy;
+        Real pz = zp - (s.cz + offz);
+        if (s.angle != Real(0.0))
+        {
+            Real const c = std::cos(s.angle);
+            Real const sn = std::sin(s.angle);
+            Real const qx = c * px + sn * pz;
+            Real const qz = -sn * px + c * pz;
+            px = qx;
+            pz = qz;
+        }
+
+        if (amrex::Math::abs(px) < s.hx &&
+            amrex::Math::abs(py) < s.hy &&
+            amrex::Math::abs(pz) < s.hz)
+        {
+            cell_type_ijk = s.material;
+            velx = voscx;
+            vely = Real(0.0);
+            velz = velz_plunge + voscz;
+            if (conservative_temperature)
+            {
+                if (s.material == -2)      { rho_ijk = cryo_props::rho_tcp; }
+                else if (s.material == -4) { rho_ijk = cryo_props::rho_sap; }
+                else if (s.material == -5) { rho_ijk = cryo_props::rho_dia; }
+                else                       { rho_ijk = cryo_props::rho_plu; } // -3, -6
+            }
+        }
+    }
+}
+
+void incflo::cryo_set_geom_velocity(int i, int j, int k,
+                                    Real x, Real y, Real z,
+                                    Real &velx, Real &vely, Real &velz,
+                                    int &cell_type_ijk,
+                                    Real &rho_ijk,
+                                    Real time,
+                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
+                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
+                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
+{
+    BL_PROFILE("incflo::cryo_set_geom_velocity");
+
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
+
+#if (AMREX_SPACEDIM == 2)
+    amrex::Abort("cryo_update: not implemented in 2D");
+
+#elif (AMREX_SPACEDIM == 3)
+
+    // ***************************************************************
+    // Plunging protocols
+    // ***************************************************************
+
+    Real velz_plunge, plunge_disp;
+    cryo_plunge_state(time, velz_plunge, plunge_disp);
 
     // ***************************************************************
     // Set geometry and velocity based on the plunging protocol
