@@ -72,6 +72,9 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
             } else if (cell_type_ijk == -5) {
                 // -5: diamond grid (solid)
                 rho_ijk = cryo_props::rho_dia;
+            } else if (cell_type_ijk == -7) {
+                // -7: wiper solid (PTFE)
+                rho_ijk = cryo_props::rho_wip;
             } else if (cell_type_ijk >= 0) {
                 // >=0: sample (solid)
                 rho_ijk = cryo_props::rho_sam;

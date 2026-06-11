@@ -56,6 +56,9 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
             } else if (ct(i,j,k) == -6) {
                 // gold plunger / debug sphere (same material as the EM grid)
                 cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+            } else if (ct(i,j,k) == -7) {
+                // wiper solid (PTFE) — constant cp, T-variation small at cryo temps
+                cp_a(i,j,k) = cryo_props::cp_wip;
             } else if (ct(i,j,k) == -1) {
                 // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
                 cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;

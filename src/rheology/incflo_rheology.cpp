@@ -216,6 +216,8 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
                         Real const cp_sim  = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
                         eta(i, j, k) = lam_sim / (cryo_props::rho_plu * cp_sim);
                     }
+                } else if (ct(i, j, k) == -7) { // wiper solid (PTFE)
+                    eta(i, j, k) = conservative_temperature ? cryo_props::k_wip : cryo_props::kappa_wip;
                 } else if (ct(i, j, k) >= 0) { // samples
                     // TODO(sample-T-props): make the sample (water) conductivity
                     // temperature-dependent, e.g. lam_water(T_a(i,j,k)) spline,

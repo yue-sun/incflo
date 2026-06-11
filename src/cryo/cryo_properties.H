@@ -92,6 +92,11 @@ namespace cryo_props
     constexpr double rho_dia_phys = 3515.0;
     constexpr double cp_dia_phys = 500.0;
     constexpr double k_dia_phys = 1800.0; // TODO: fix average
+    // Wiper solid (PTFE / Teflon) — low alpha keeps dt large even at 90 K
+    // TODO(wiper-material): replace with measured cryo splines when available
+    constexpr double rho_wip_phys = 2200.0;  // [kg/m³]
+    constexpr double cp_wip_phys  = 1000.0;  // [J/(kg·K)], roughly flat 90–300 K
+    constexpr double k_wip_phys   = 0.20;    // [W/(m·K)], roughly flat 90–300 K
 
     ///////////////////////////////////////////////////////////////////////////
     //
@@ -136,6 +141,12 @@ namespace cryo_props
     constexpr amrex::Real vhc_dia = rho_dia_phys * cp_dia_phys * conv_vhc;
     constexpr amrex::Real k_dia = k_dia_phys * conv_k;
     constexpr amrex::Real kappa_dia = k_dia / vhc_dia;
+    // Wiper solid (PTFE)
+    constexpr amrex::Real rho_wip = rho_wip_phys * conv_rho;
+    constexpr amrex::Real cp_wip  = cp_wip_phys  * conv_cp;
+    constexpr amrex::Real vhc_wip = rho_wip_phys * cp_wip_phys * conv_vhc;
+    constexpr amrex::Real k_wip   = k_wip_phys   * conv_k;
+    constexpr amrex::Real kappa_wip = k_wip / vhc_wip;
 
     ///////////////////////////////////////////////////////////////////////////
     //
