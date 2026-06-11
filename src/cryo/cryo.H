@@ -38,8 +38,9 @@ amrex::Real wsam = amrex::Real(0.01); // sample width: 10um
 
 struct CryoSolid
 {
-    int shape = 0;                 // 0 = bar (box), 1 = vane (box rotated about y), 2 = serration carve
-    int material = -6;             // cell_type stamped inside (default gold); ignored by serration
+    int shape = 0;                 // 0 = bar (box), 1 = vane (box rotated about y), 2 = serration carve, 3 = ring (annulus about y axis), 4 = gear_rim
+    int attach = 0;                // 0 = plunger (co-moving frame z'), 1 = lab-fixed (frame z, stamped velocity 0)
+    int material = -7;             // cell_type stamped inside (default PTFE wiper); ignored by serration
     amrex::Real cx = 0., cy = 0., cz = 0.;   // box center (bar/vane), co-moving frame
     amrex::Real hx = 0., hy = 0., hz = 0.;   // box half-extents
     amrex::Real angle = 0.;        // vane pitch about y [radians], applied in the x-z' plane
@@ -47,12 +48,21 @@ struct CryoSolid
     amrex::Real osc_amp = 0.;      // oscillation amplitude [mm]
     amrex::Real osc_freq = 0.;     // oscillation frequency [cycles per time unit]
     amrex::Real osc_phase = 0.;    // phase [radians]
+    amrex::Real ring_r0 = 0., ring_r1 = 0.;    // ring inner/outer radius (shape == 3; uses hy for half-thickness in y)
     // serration (shape == 2): carve teeth from the disk's leading (bottom) arc
     amrex::Real serr_R = amrex::Real(1.5);     // disk radius
     amrex::Real serr_zc = amrex::Real(1.5);    // disk center z' (co-moving)
     amrex::Real serr_depth = 0.;               // radial tooth depth
     int serr_nteeth = 0;                       // teeth count over the full circle
     amrex::Real serr_duty = amrex::Real(0.5);  // tooth fraction of one pitch (rest is notch)
+    // gear_rim (shape == 4): annular rim at the disk edge with y-extruding teeth
+    amrex::Real rim_r_inner = 0.;              // inner radius of the rim annulus
+    amrex::Real rim_r_outer = 0.;              // outer radius (typically = disk radius)
+    amrex::Real rim_zc = amrex::Real(1.5);     // disk center z' (co-moving)
+    amrex::Real rim_base_hy = 0.;             // y half-thickness of the base ring (typically = disk half-width)
+    amrex::Real rim_tooth_h = 0.;             // additional y extrusion of each tooth beyond ±rim_base_hy
+    int rim_nteeth = 0;                        // number of teeth around the full ring
+    amrex::Real rim_duty = amrex::Real(0.5);   // tooth angular fraction per pitch (0..1)
 };
 
 int m_cryo_n_solids = 0;

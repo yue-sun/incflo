@@ -140,13 +140,25 @@ void incflo::cryo_read_solids()
         if (shape == "bar") { s.shape = 0; }
         else if (shape == "vane") { s.shape = 1; }
         else if (shape == "serration") { s.shape = 2; }
-        else { amrex::Abort(pre + "shape must be bar, vane, or serration"); }
+        else if (shape == "ring") { s.shape = 3; }
+        else if (shape == "gear_rim") { s.shape = 4; }
+        else { amrex::Abort(pre + "shape must be bar, vane, serration, ring, or gear_rim"); }
+
+        std::string attach = "plunger";
+        pp.query((pre + "attach").c_str(), attach);
+        if (attach == "plunger") { s.attach = 0; }
+        else if (attach == "lab") { s.attach = 1; }
+        else { amrex::Abort(pre + "attach must be plunger or lab"); }
+        if ((s.shape == 2 || s.shape == 4) && s.attach != 0)
+        {
+            amrex::Abort(pre + "serration and gear_rim must be attach = plunger (they co-move with the disk)");
+        }
 
         pp.query((pre + "material").c_str(), s.material);
         if (s.material != -2 && s.material != -3 && s.material != -4 &&
-            s.material != -5 && s.material != -6)
+            s.material != -5 && s.material != -6 && s.material != -7)
         {
-            amrex::Abort(pre + "material must be a solid cell_type (-2..-6)");
+            amrex::Abort(pre + "material must be a solid cell_type (-2..-7)");
         }
 
         Vector<Real> v3;
@@ -175,13 +187,40 @@ void incflo::cryo_read_solids()
         pp.query((pre + "serr_nteeth").c_str(), s.serr_nteeth);
         pp.query((pre + "serr_duty").c_str(), s.serr_duty);
 
-        if (s.shape != 2 && (s.hx <= Real(0.0) || s.hy <= Real(0.0) || s.hz <= Real(0.0)))
+        v3.clear();
+        pp.queryarr((pre + "ring_r").c_str(), v3);
+        if (v3.size() == 2) { s.ring_r0 = v3[0]; s.ring_r1 = v3[1]; }
+
+        // gear_rim parameters
+        pp.query((pre + "rim_r_inner").c_str(), s.rim_r_inner);
+        pp.query((pre + "rim_r_outer").c_str(), s.rim_r_outer);
+        pp.query((pre + "rim_zc").c_str(), s.rim_zc);
+        pp.query((pre + "rim_base_hy").c_str(), s.rim_base_hy);
+        pp.query((pre + "rim_tooth_h").c_str(), s.rim_tooth_h);
+        pp.query((pre + "rim_nteeth").c_str(), s.rim_nteeth);
+        pp.query((pre + "rim_duty").c_str(), s.rim_duty);
+
+        if ((s.shape == 0 || s.shape == 1) &&
+            (s.hx <= Real(0.0) || s.hy <= Real(0.0) || s.hz <= Real(0.0)))
         {
-            amrex::Abort(pre + "half must be three positive extents for bar/vane");
+            amrex::Abort(pre + "half must be three positive extents for bar/vane"
+                         " (no cryo_solid_<n>_half found? indices must run 0..n_solids-1)");
         }
         if (s.shape == 2 && (s.serr_depth <= Real(0.0) || s.serr_nteeth <= 0))
         {
             amrex::Abort(pre + "serration needs serr_depth > 0 and serr_nteeth > 0");
+        }
+        if (s.shape == 3 &&
+            (s.ring_r0 <= Real(0.0) || s.ring_r1 <= s.ring_r0 || s.hy <= Real(0.0)))
+        {
+            amrex::Abort(pre + "ring needs ring_r = r0 r1 with r1 > r0 > 0 and half = hx hy hz with hy > 0");
+        }
+        if (s.shape == 4 &&
+            (s.rim_r_inner < Real(0.0) || s.rim_r_outer <= s.rim_r_inner ||
+             s.rim_base_hy <= Real(0.0) || s.rim_tooth_h <= Real(0.0) || s.rim_nteeth <= 0))
+        {
+            amrex::Abort(pre + "gear_rim needs rim_r_inner >= 0, rim_r_outer > rim_r_inner, "
+                               "rim_base_hy > 0, rim_tooth_h > 0, rim_nteeth > 0");
         }
     }
 }
@@ -224,8 +263,52 @@ void incflo::cryo_apply_solids(Real x, Real y, Real z,
             continue;
         }
 
-        // bar / vane: box test in the (possibly oscillation-shifted, possibly
-        // rotated) co-moving frame
+        if (s.shape == 4)
+        {
+            // Gear-rim: annular ring at the disk edge with teeth extruding in ±y.
+            // Base ring: r in [rim_r_inner, rim_r_outer], |y| < rim_base_hy.
+            // Teeth:     at tooth angular sectors, |y| < rim_base_hy + rim_tooth_h.
+            Real const rx = x;
+            Real const rz = zp - s.rim_zc;
+            Real const r2 = rx * rx + rz * rz;
+            if (r2 < s.rim_r_inner * s.rim_r_inner) { continue; }
+            if (r2 > s.rim_r_outer * s.rim_r_outer) { continue; }
+            Real const aby = amrex::Math::abs(y);
+            if (aby >= s.rim_base_hy + s.rim_tooth_h) { continue; }
+            if (aby < s.rim_base_hy)
+            {
+                // inside base ring regardless of angle
+            }
+            else
+            {
+                // in the tooth extension zone — check angular sector
+                Real const theta = std::atan2(rx, rz);   // [-pi, pi]
+                Real frac = (theta + Real(M_PI)) * Real(s.rim_nteeth) / Real(2.0 * M_PI);
+                frac -= std::floor(frac);
+                if (frac >= s.rim_duty) { continue; }    // gap sector: not a tooth
+            }
+            cell_type_ijk = s.material;
+            velx = Real(0.0);
+            vely = Real(0.0);
+            velz = velz_plunge;
+            if (conservative_temperature)
+            {
+                if (s.material == -2)      { rho_ijk = cryo_props::rho_tcp; }
+                else if (s.material == -4) { rho_ijk = cryo_props::rho_sap; }
+                else if (s.material == -5) { rho_ijk = cryo_props::rho_dia; }
+                else if (s.material == -7) { rho_ijk = cryo_props::rho_wip; }
+                else                       { rho_ijk = cryo_props::rho_plu; }
+            }
+            continue;
+        }
+
+        // bar / vane / ring: inside-test in the (possibly oscillation-shifted,
+        // possibly rotated) reference frame. attach = plunger uses the
+        // co-moving frame z'; attach = lab uses the lab frame z with a zero
+        // base velocity (the disk sweeps past the obstacle).
+        Real const zf = (s.attach == 1) ? z : zp;
+        Real const vbase = (s.attach == 1) ? Real(0.0) : velz_plunge;
+
         Real offx = Real(0.0), offz = Real(0.0);
         Real voscx = Real(0.0), voscz = Real(0.0);
         if (s.osc_axis >= 0 && s.osc_amp != Real(0.0) && s.osc_freq != Real(0.0))
@@ -239,30 +322,45 @@ void incflo::cryo_apply_solids(Real x, Real y, Real z,
 
         Real px = x - (s.cx + offx);
         Real const py = y - s.cy;
-        Real pz = zp - (s.cz + offz);
-        if (s.angle != Real(0.0))
+        Real pz = zf - (s.cz + offz);
+
+        bool inside = false;
+        if (s.shape == 3)
         {
-            Real const c = std::cos(s.angle);
-            Real const sn = std::sin(s.angle);
-            Real const qx = c * px + sn * pz;
-            Real const qz = -sn * px + c * pz;
-            px = qx;
-            pz = qz;
+            // ring: annulus about the y axis (co-planar with the disk)
+            Real const rr2 = px * px + pz * pz;
+            inside = amrex::Math::abs(py) < s.hy &&
+                     rr2 > s.ring_r0 * s.ring_r0 &&
+                     rr2 < s.ring_r1 * s.ring_r1;
+        }
+        else
+        {
+            if (s.angle != Real(0.0))
+            {
+                Real const c = std::cos(s.angle);
+                Real const sn = std::sin(s.angle);
+                Real const qx = c * px + sn * pz;
+                Real const qz = -sn * px + c * pz;
+                px = qx;
+                pz = qz;
+            }
+            inside = amrex::Math::abs(px) < s.hx &&
+                     amrex::Math::abs(py) < s.hy &&
+                     amrex::Math::abs(pz) < s.hz;
         }
 
-        if (amrex::Math::abs(px) < s.hx &&
-            amrex::Math::abs(py) < s.hy &&
-            amrex::Math::abs(pz) < s.hz)
+        if (inside)
         {
             cell_type_ijk = s.material;
             velx = voscx;
             vely = Real(0.0);
-            velz = velz_plunge + voscz;
+            velz = vbase + voscz;
             if (conservative_temperature)
             {
                 if (s.material == -2)      { rho_ijk = cryo_props::rho_tcp; }
                 else if (s.material == -4) { rho_ijk = cryo_props::rho_sap; }
                 else if (s.material == -5) { rho_ijk = cryo_props::rho_dia; }
+                else if (s.material == -7) { rho_ijk = cryo_props::rho_wip; }
                 else                       { rho_ijk = cryo_props::rho_plu; } // -3, -6
             }
         }
@@ -324,7 +422,8 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         Real R_sap_disk = Real(1.5);      // sapphire disk radius: 1.5mm
         Real w_sap_disk = Real(0.16 / 2); // sapphire disk width: 160um
 
-        Real zoff = R_sap_disk + plunge_disp;
+        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : R_sap_disk;
+        Real zoff = init_z + plunge_disp;
         Real geom_sap_disk = x * x + (z - zoff) * (z - zoff);
         Real geom_sap_disk_thickness = amrex::Math::abs(y);
         // Disk geometry, plus an optional sample layer (water properties)
@@ -351,7 +450,8 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         Real R_dia_disk = Real(1.5);     // diamond disk radius: 1.5mm
         Real w_dia_disk = Real(0.1 / 2); // diamond disk width: 0.1mm
 
-        Real zoff = R_dia_disk + plunge_disp;
+        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : R_dia_disk;
+        Real zoff = init_z + plunge_disp;
         Real geom_dia_disk = x * x + (z - zoff) * (z - zoff);
         Real geom_dia_disk_thickness = amrex::Math::abs(y);
         // Disk geometry, plus an optional sample layer (water properties)
@@ -470,6 +570,10 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         else if (cell_type_ijk == -5)
         {
             rho_ijk = cryo_props::rho_dia;
+        }
+        else if (cell_type_ijk == -7)
+        {
+            rho_ijk = cryo_props::rho_wip;
         }
         else if (cell_type_ijk >= 0)
         {
