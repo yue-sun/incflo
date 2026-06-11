@@ -795,6 +795,7 @@ private:
     amrex::Vector<amrex::Real> m_cryo_plunge_time;
     amrex::Real m_cryo_temp_entry = 0.;
     amrex::Real m_cryo_temp_eth = 0.;
+    amrex::Real m_cryo_disk_init_z = -1.;  // initial disk center z offset; -1 = use default (disk radius)
 #endif
 
     //
