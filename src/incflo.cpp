@@ -55,6 +55,19 @@ void incflo::InitData ()
         // with MakeNewLevelFromScratch.
         InitFromScratch(m_cur_time);
 
+#ifdef INCFLO_SIM_CRYO
+        // If wiper solids are present, stamp them now (cryo_update only runs
+        // during Advance, so InitFromScratch built the AMR hierarchy without
+        // seeing them). Regrid after stamping so ErrorEst tags the solid cells
+        // and fine levels are placed around them from the start. A second
+        // cryo_update restamps at the new fine resolution.
+        if (m_sim_cryo && m_cryo_n_solids > 0) {
+            cryo_update(m_cur_time);
+            regrid(0, m_cur_time);
+            cryo_update(m_cur_time);
+        }
+#endif
+
 #ifdef AMREX_USE_EB
         if (!EBFactory(0).isAllRegular()) {
             InitialRedistribution();
