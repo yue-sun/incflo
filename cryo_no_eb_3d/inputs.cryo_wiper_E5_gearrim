@@ -69,7 +69,7 @@ incflo.tag_region       =   true
 incflo.tag_region_time  =   0.03
 incflo.tag_region_lo    =   -0.5  -0.5  -0.5
 incflo.tag_region_hi    =    0.5   0.5   0.0
-amr.regrid_int          =   10
+amr.regrid_int          =   5
 incflo.tag_cell_type    =   true
 incflo.temperr          =   120. 95.
 incflo.gradtemperr      =   10. 1
@@ -138,5 +138,5 @@ incflo.cryo_solid_0_rim_r_outer  = 1.6       # mm — outer edge = disk radius
 incflo.cryo_solid_0_rim_zc       = 1.6       # mm — disk center z' (co-moving)
 incflo.cryo_solid_0_rim_base_hy  = 0.08      # mm — y half-thickness of the base ring (= disk half-width)
 incflo.cryo_solid_0_rim_tooth_h  = 0.15       # mm — additional ±y extrusion at tooth sectors
-incflo.cryo_solid_0_rim_nteeth   = 12        # number of teeth around the ring
-incflo.cryo_solid_0_rim_duty     = 1.0       # tooth angular fraction per pitch (0 = no teeth, 1 = full ring)
+incflo.cryo_solid_0_rim_nteeth   = 36        # number of teeth around the ring
+incflo.cryo_solid_0_rim_duty     = 0.5       # tooth angular fraction per pitch (0 = no teeth, 1 = full ring)
