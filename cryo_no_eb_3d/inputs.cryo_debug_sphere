@@ -29,10 +29,9 @@ incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
 incflo.mu               =   0.001966    # Dynamic viscosity coefficient
 
 incflo.use_temperature  =   1
-incflo.temp_is_conservative  =   0
 incflo.mu_T             =   0.392879    # Thermal conductivity
 incflo.cp               =   1610.0
-incflo.temp_iface_smooth_iters  =   2    # Optional: smooth k at material interfaces (0 disables)
+incflo.temp_iface_smooth_iters  =   0    # sharp interfaces: harmonic face k(T), no smoothing needed
 incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing      
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
