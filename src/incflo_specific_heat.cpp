@@ -85,6 +85,36 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
                                               lev > 0 ? &m_leveldata[lev-1]->cp : nullptr);
 }
 
+// Thermal-mass density: material density by cell_type, decoupled from the
+// (uniform) hydrodynamic density. Valid cells only (callers use tileboxes).
+void incflo::compute_rho_th (int lev, MultiFab& rho_th) const
+{
+#ifdef INCFLO_SIM_CRYO
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
+
+    if (m_sim_cryo && conservative_temperature)
+    {
+        auto& ld = *m_leveldata[lev];
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(rho_th, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box const& bx = mfi.tilebox();
+            Array4<Real> const& rho_a = rho_th.array(mfi);
+            Array4<int const> const& ct = ld.cell_type.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                rho_a(i,j,k) = cryo_props::rho_mat(ct(i,j,k));
+            });
+        }
+        return;
+    }
+#endif
+    MultiFab::Copy(rho_th, m_leveldata[lev]->density_nph, 0, 0, 1, 0);
+}
+
 void incflo::get_temperature_property_smoothing (int& smooth_iters,
                                                  Real& smooth_weight) const
 {

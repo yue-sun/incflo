@@ -208,7 +208,10 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
                     constexpr Real denom_floor = Real(1.0e-12);
                     constexpr Real alpha_cap = Real(1.0e300);
 
-                    therm_lev = amrex::ReduceMax(eta_T, rho, cp, 0,
+                    MultiFab rho_th_lev(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+                    compute_rho_th(lev, rho_th_lev);
+
+                    therm_lev = amrex::ReduceMax(eta_T, rho_th_lev, cp, 0,
                                                  [=] AMREX_GPU_HOST_DEVICE(Box const& b,
                                                                            Array4<Real const> const& k,
                                                                            Array4<Real const> const& r,

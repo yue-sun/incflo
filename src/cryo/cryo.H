@@ -76,7 +76,7 @@ void cryo_plunge_state(amrex::Real time,
 
 void cryo_apply_solids(amrex::Real x, amrex::Real y, amrex::Real z,
                        amrex::Real &velx, amrex::Real &vely, amrex::Real &velz,
-                       int &cell_type_ijk, amrex::Real &rho_ijk,
+                       int &cell_type_ijk,
                        amrex::Real time,
                        amrex::Real velz_plunge, amrex::Real plunge_disp) const;
 
@@ -93,7 +93,7 @@ void cryo_update(amrex::Real time = amrex::Real(-1.0));
 void cryo_set_geom_velocity(int i, int j, int k,
                             amrex::Real x, amrex::Real y, amrex::Real z,
                             amrex::Real &velx, amrex::Real &vely, amrex::Real &velz,
-                            int &cell_type_ijk, amrex::Real &rho_ijk,
+                            int &cell_type_ijk,
                             amrex::Real time,
                             amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                             amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,

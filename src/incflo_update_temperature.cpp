@@ -18,11 +18,16 @@ void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
     Real l_dt = m_dt;
 
     Vector<MultiFab> energy(finest_level + 1);
+    Vector<MultiFab> rho_th(finest_level + 1);
     if (conservative_temperature)
     {
         for (int lev = 0; lev <= finest_level; ++lev)
         {
             energy[lev].define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+            // Thermal mass from the same cell_type snapshot compute_cp uses,
+            // instead of the (old-time-stamped) hydrodynamic density.
+            rho_th[lev].define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+            compute_rho_th(lev, rho_th[lev]);
         }
     }
 
@@ -39,8 +44,12 @@ void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
             Box const &bx = mfi.tilebox();
             Array4<Real const> const &tem_o = ld.temperature_o.const_array(mfi);
             Array4<Real> const &tem = ld.temperature.array(mfi);
-            Array4<Real const> const &rho_o = ld.density_o.const_array(mfi);
-            Array4<Real const> const &rho_h = ld.density_nph.const_array(mfi);
+            // In conservative mode rho_o == rho_h: material density depends only
+            // on the current cell_type, so the old/half-time distinction is moot.
+            Array4<Real const> const rho_o = conservative_temperature
+                ? rho_th[lev].const_array(mfi) : ld.density_o.const_array(mfi);
+            Array4<Real const> const rho_h = conservative_temperature
+                ? rho_th[lev].const_array(mfi) : ld.density_nph.const_array(mfi);
             Array4<Real const> const &dtdt_o = ld.conv_temperature_o.const_array(mfi);
             // temperature forcing term (Q) is in scratch
             Array4<Real> const &tem_f = scratch[lev].array(mfi);

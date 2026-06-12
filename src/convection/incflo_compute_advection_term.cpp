@@ -75,6 +75,8 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
 {
     bool fluxes_are_area_weighted = false;
     bool knownFaceStates          = false; // HydroUtils always recompute face states
+    bool const conservative_temperature =
+        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
 
 #ifdef AMREX_USE_EB
     amrex::Print() << "REDISTRIBUTION TYPE " << m_redistribution_type << std::endl;
@@ -214,13 +216,20 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
             for (int lev = 0; lev <= finest_level; ++lev) {
                 auto& ld = *m_leveldata[lev];
                 compute_cp(lev, ld.cp);
+                MultiFab rho_th_lev;
+                if (conservative_temperature) {
+                    rho_th_lev.define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+                    compute_rho_th(lev, rho_th_lev);
+                }
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
                 for (MFIter mfi(*density[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     Box const& bx = mfi.tilebox();
                     Array4<Real const> const& cp    = ld.cp.const_array(mfi);
-                    Array4<Real const> const& rho   = density[lev]->array(mfi);
+                    Array4<Real const> const rho = conservative_temperature
+                        ? rho_th_lev.const_array(mfi)
+                        : density[lev]->const_array(mfi);
                     Array4<Real      > const& tem_f = tem_forces[lev]->array(mfi);
                     if (m_godunov_include_diff_in_forcing) {
                         Array4<Real const> const& laps = ld.laps_tem_o.const_array(mfi);

@@ -39,7 +39,6 @@ void incflo::cryo_update(Real time)
         {
             Box const &bx = mfi.tilebox();
             Array4<Real> const &vel = ld.velocity.array(mfi);
-            Array4<Real> const &density = ld.density.array(mfi);
             Array4<int> const &cell_type = ld.cell_type.array(mfi);
             Array4<Real> const &temperature = ld.temperature.array(mfi);
 
@@ -54,21 +53,18 @@ void incflo::cryo_update(Real time)
                             Real &vely = vel(i, j, k, 1);
                             Real &velz = vel(i, j, k, 2);
                             Real &temperature_ijk = temperature(i, j, k);
-                            Real &rho_ijk = density(i, j, k);
-
 
                             // Set geometry and velocity
                             cryo_set_geom_velocity(i, j, k, x, y, z,
                                                    velx, vely, velz,
                                                    cell_type_ijk,
-                                                   rho_ijk,
                                                time, dx, problo, probhi);
                             // Additive wiper/obstacle primitives
                             if (m_cryo_n_solids > 0)
                             {
                                 cryo_apply_solids(x, y, z,
                                                   velx, vely, velz,
-                                                  cell_type_ijk, rho_ijk,
+                                                  cell_type_ijk,
                                                   time, velz_plunge, plunge_disp);
                             }
                             // Set thermal properties and top temperature B.C.
@@ -227,13 +223,10 @@ void incflo::cryo_read_solids()
 
 void incflo::cryo_apply_solids(Real x, Real y, Real z,
                                Real &velx, Real &vely, Real &velz,
-                               int &cell_type_ijk, Real &rho_ijk,
+                               int &cell_type_ijk,
                                Real time,
                                Real velz_plunge, Real plunge_disp) const
 {
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
     Real const zp = z - plunge_disp; // co-moving frame
 
     for (int n = 0; n < m_cryo_n_solids; ++n)
@@ -258,7 +251,6 @@ void incflo::cryo_apply_solids(Real x, Real y, Real z,
             if (frac >= s.serr_duty)
             {
                 cell_type_ijk = -1;
-                if (conservative_temperature) { rho_ijk = cryo_props::rho_eth; }
             }
             continue;
         }
@@ -291,14 +283,6 @@ void incflo::cryo_apply_solids(Real x, Real y, Real z,
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;
-            if (conservative_temperature)
-            {
-                if (s.material == -2)      { rho_ijk = cryo_props::rho_tcp; }
-                else if (s.material == -4) { rho_ijk = cryo_props::rho_sap; }
-                else if (s.material == -5) { rho_ijk = cryo_props::rho_dia; }
-                else if (s.material == -7) { rho_ijk = cryo_props::rho_wip; }
-                else                       { rho_ijk = cryo_props::rho_plu; }
-            }
             continue;
         }
 
@@ -355,14 +339,6 @@ void incflo::cryo_apply_solids(Real x, Real y, Real z,
             velx = voscx;
             vely = Real(0.0);
             velz = vbase + voscz;
-            if (conservative_temperature)
-            {
-                if (s.material == -2)      { rho_ijk = cryo_props::rho_tcp; }
-                else if (s.material == -4) { rho_ijk = cryo_props::rho_sap; }
-                else if (s.material == -5) { rho_ijk = cryo_props::rho_dia; }
-                else if (s.material == -7) { rho_ijk = cryo_props::rho_wip; }
-                else                       { rho_ijk = cryo_props::rho_plu; } // -3, -6
-            }
         }
     }
 }
@@ -371,16 +347,12 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
                                     Real x, Real y, Real z,
                                     Real &velx, Real &vely, Real &velz,
                                     int &cell_type_ijk,
-                                    Real &rho_ijk,
                                     Real time,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
                                     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
 {
     BL_PROFILE("incflo::cryo_set_geom_velocity");
-
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
 
 #if (AMREX_SPACEDIM == 2)
     amrex::Abort("cryo_update: not implemented in 2D");
@@ -548,38 +520,6 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         }
     }
 
-    if (conservative_temperature)
-    {
-        // Map material density from cell type only for conservative temperature mode.
-        if (cell_type_ijk == -1)
-        {
-            rho_ijk = cryo_props::rho_eth;
-        }
-        else if (cell_type_ijk == -2)
-        {
-            rho_ijk = cryo_props::rho_tcp;
-        }
-        else if (cell_type_ijk == -3 || cell_type_ijk == -6)
-        {
-            rho_ijk = cryo_props::rho_plu;
-        }
-        else if (cell_type_ijk == -4)
-        {
-            rho_ijk = cryo_props::rho_sap;
-        }
-        else if (cell_type_ijk == -5)
-        {
-            rho_ijk = cryo_props::rho_dia;
-        }
-        else if (cell_type_ijk == -7)
-        {
-            rho_ijk = cryo_props::rho_wip;
-        }
-        else if (cell_type_ijk >= 0)
-        {
-            rho_ijk = cryo_props::rho_sam;
-        }
-    }
 #endif
 }
 

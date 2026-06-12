@@ -205,6 +205,24 @@ namespace cryo_props
         };
     } // namespace thermal_properties
 
+    // Material (thermal-mass) density by cell_type [sim units]. This is the
+    // single source for rho in vhc = rho_mat*cp(T). Hydrodynamic
+    // density stays uniform at ro_0 and must NOT be stamped from these.
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real rho_mat (int cell_type) noexcept
+    {
+        if (cell_type >= 0) { return rho_sam; }  // sample (water)
+        switch (cell_type) {
+        case -2: return rho_tcp;                 // thermocouple
+        case -3:                                 // gold EM grid
+        case -6: return rho_plu;                 // gold plunger / debug sphere
+        case -4: return rho_sap;                 // sapphire disk
+        case -5: return rho_dia;                 // diamond disk
+        case -7: return rho_wip;                 // wiper (PTFE)
+        default: return rho_eth;                 // -1: liquid ethane
+        }
+    }
+
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         amrex::Real
         cp_typeK(amrex::Real T_K) noexcept

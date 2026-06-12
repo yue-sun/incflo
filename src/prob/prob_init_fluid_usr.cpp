@@ -17,9 +17,6 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
     amrex::Abort("init_cryo_plugning: not implemented in 2D");
 
 #elif (AMREX_SPACEDIM == 3)
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
     amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real x = (i+0.5)*dx[0] - 0.5*(probhi[0] - problo[0]);
@@ -31,7 +28,6 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         Real &velz = vel(i,j,k,2);
         int &cell_type_ijk = cell_type(i,j,k);
         Real &temperature_ijk = temperature(i,j,k);
-        Real &rho_ijk = density(i,j,k);
 
         // Initialize density, velocity, and cell_type for each cell
         density(i,j,k) = Real(1.0);
@@ -42,7 +38,7 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         // based on the prescribed velocity of the plunging protocol
 #ifdef INCFLO_SIM_CRYO
         cryo_set_geom_velocity(i, j, k, x, y, z,
-                            velx, vely, velz, cell_type_ijk, rho_ijk,
+                            velx, vely, velz, cell_type_ijk,
                             m_cur_time, dx, problo, probhi);
         cryo_set_thermal(i, j, k, x, y, z, cell_type_ijk, m_cur_time, dx, problo, probhi);
 
@@ -53,32 +49,6 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         } else {
             // All other cell types for solids
             temperature_ijk = m_cryo_temp_entry;
-        }
-
-        // Set initial density from material type only in conservative temperature mode.
-        if (conservative_temperature) {
-            if (cell_type_ijk == -1) {
-                // -1: liquid ethane (fluid)
-                rho_ijk = cryo_props::rho_eth;
-            } else if (cell_type_ijk == -2) {
-                // -2: thermocouple (solid)
-                rho_ijk = cryo_props::rho_tcp;
-            } else if (cell_type_ijk == -3 || cell_type_ijk == -6) {
-                // -3: EM grid (solid), -6: debug sphere
-                rho_ijk = cryo_props::rho_plu;
-            } else if (cell_type_ijk == -4) {
-                // -4: sapphire grid (solid)
-                rho_ijk = cryo_props::rho_sap;
-            } else if (cell_type_ijk == -5) {
-                // -5: diamond grid (solid)
-                rho_ijk = cryo_props::rho_dia;
-            } else if (cell_type_ijk == -7) {
-                // -7: wiper solid (PTFE)
-                rho_ijk = cryo_props::rho_wip;
-            } else if (cell_type_ijk >= 0) {
-                // >=0: sample (solid)
-                rho_ijk = cryo_props::rho_sam;
-            }
         }
 #endif
 
