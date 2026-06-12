@@ -355,6 +355,7 @@ public:
 
     void compute_cp (int lev, amrex::MultiFab& cp) const;
     void compute_rho_th (int lev, amrex::MultiFab& rho_th) const;
+    amrex::Real compute_thermal_energy ();
     void get_temperature_property_smoothing (int& smooth_iters,
                                              amrex::Real& smooth_weight) const;
     void smooth_temperature_property_at_interfaces (int lev,

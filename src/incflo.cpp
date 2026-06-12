@@ -194,6 +194,12 @@ void incflo::Evolve()
             amrex::Print() << "Time, Kinetic Energy: " << m_cur_time << ", " << ComputeKineticEnergy() << std::endl;
         }
 
+        if (m_use_temperature)
+        {
+            amrex::Print() << "Time, Thermal Energy: " << m_cur_time << ", "
+                           << compute_thermal_energy() << std::endl;
+        }
+
         // Mechanism to terminate incflo normally.
         do_not_evolve = (m_steady_state && SteadyStateReached()) ||
                         ((m_stop_time > 0. && (m_cur_time >= m_stop_time - 1.e-12 * m_dt)) ||

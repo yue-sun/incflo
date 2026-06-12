@@ -36,15 +36,10 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
     Real therm_cfl = Real(0.0);
     bool apply_thermal_dt_constraint = true;
 
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
     if (m_use_temperature && m_thermal_cfl > Real(0.0)) {
         compute_temperature_diff_coeff(m_cur_time, get_thermal_conductivity_new());
-        if (conservative_temperature) {
-            for (int lev = 0; lev <= finest_level; ++lev) {
-                compute_cp(lev, m_leveldata[lev]->cp);
-            }
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            compute_cp(lev, m_leveldata[lev]->cp);
         }
     }
 
@@ -196,54 +191,36 @@ void incflo::ComputeDt(int initialization, bool explicit_diffusion)
             MultiFab const& eta_T = m_leveldata[lev]->thermal_conductivity;
 
             // Bound the diffusive timestep by the thermal diffusivity actually
-            // realized this step.  eta_T / cp / rho already hold the temperature-
-            // dependent material properties (filled by rheology + compute_cp for
-            // every cell type, including the cryo solids), so scanning the live
-            // fields tracks the true peak alpha = k/(rho*cp) as the disk cools,
-            // instead of a static worst case over the whole 90-290 K table.
+            // realized this step.  eta_T / cp / rho_mat(cell_type) hold the
+            // temperature-dependent material properties (filled by rheology +
+            // compute_cp for every cell type, including the cryo solids), so
+            // scanning the live fields tracks the true peak alpha = k/(rho*cp)
+            // as the disk cools, instead of a static worst case over the whole
+            // 90-290 K table.
             {
-                if (conservative_temperature)
-                {
-                    MultiFab const& cp = m_leveldata[lev]->cp;
-                    constexpr Real denom_floor = Real(1.0e-12);
-                    constexpr Real alpha_cap = Real(1.0e300);
+                MultiFab const& cp = m_leveldata[lev]->cp;
+                constexpr Real denom_floor = Real(1.0e-12);
+                constexpr Real alpha_cap = Real(1.0e300);
 
-                    MultiFab rho_th_lev(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
-                    compute_rho_th(lev, rho_th_lev);
+                MultiFab rho_th_lev(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+                compute_rho_th(lev, rho_th_lev);
 
-                    therm_lev = amrex::ReduceMax(eta_T, rho_th_lev, cp, 0,
-                                                 [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                           Array4<Real const> const& k,
-                                                                           Array4<Real const> const& r,
-                                                                           Array4<Real const> const& cp_a) -> Real
+                therm_lev = amrex::ReduceMax(eta_T, rho_th_lev, cp, 0,
+                                             [=] AMREX_GPU_HOST_DEVICE(Box const& b,
+                                                                       Array4<Real const> const& k,
+                                                                       Array4<Real const> const& r,
+                                                                       Array4<Real const> const& cp_a) -> Real
+                                             {
+                                                 Real mx = Real(0.0);
+                                                 amrex::Loop(b, [=, &mx](int i, int j, int kidx) noexcept
                                                  {
-                                                     Real mx = Real(0.0);
-                                                     amrex::Loop(b, [=, &mx](int i, int j, int kidx) noexcept
-                                                     {
-                                                         Real denom = amrex::max(amrex::Math::abs(r(i,j,kidx) * cp_a(i,j,kidx)), denom_floor);
-                                                         Real alpha = amrex::max(Real(0.0), k(i,j,kidx)) / denom;
-                                                         alpha = amrex::min(alpha, alpha_cap);
-                                                         mx = amrex::max(mx, alpha);
-                                                     });
-                                                     return mx;
+                                                     Real denom = amrex::max(amrex::Math::abs(r(i,j,kidx) * cp_a(i,j,kidx)), denom_floor);
+                                                     Real alpha = amrex::max(Real(0.0), k(i,j,kidx)) / denom;
+                                                     alpha = amrex::min(alpha, alpha_cap);
+                                                     mx = amrex::max(mx, alpha);
                                                  });
-                }
-                else
-                {
-                    constexpr Real alpha_cap = Real(1.0e300);
-                    therm_lev = amrex::ReduceMax(eta_T, 0,
-                                                 [=] AMREX_GPU_HOST_DEVICE(Box const& b,
-                                                                           Array4<Real const> const& k) -> Real
-                                                 {
-                                                     Real mx = Real(0.0);
-                                                     amrex::Loop(b, [=, &mx](int i, int j, int kidx) noexcept
-                                                     {
-                                                         Real alpha = amrex::min(amrex::max(Real(0.0), k(i,j,kidx)), alpha_cap);
-                                                         mx = amrex::max(mx, alpha);
-                                                     });
-                                                     return mx;
-                                                 });
-                }
+                                                 return mx;
+                                             });
             }
 
             therm_cfl = std::max(therm_cfl, therm_lev * Real(2.0) * dxinv_norm);

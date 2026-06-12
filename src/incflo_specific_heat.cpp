@@ -8,7 +8,6 @@ using namespace amrex;
 
 void incflo::compute_cp (int lev, MultiFab& cp) const
 {
-    bool const conservative_temperature = !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
     auto& ld = *m_leveldata[lev];
 
     // Initialize all cells (including ghosts) to a safe baseline so AMR
@@ -27,49 +26,48 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
         Box const& bx = mfi.tilebox();
         Array4<Real> const& cp_a = cp.array(mfi);
 
-        if (!conservative_temperature) {
+#ifdef INCFLO_SIM_CRYO
+        if (m_sim_cryo) {
+            auto const& ct  = ld.cell_type.const_array(mfi);
+            auto const& T_a = ld.temperature.const_array(mfi);
+            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (ct(i,j,k) == -2) {
+                    // cp from spline [J/(g·K)] -> [J/(kg·K)] -> simulation units
+                    cp_a(i,j,k) = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) == -3) {
+                    // gold EM grid: cp(T) [J/(g·K)] -> [J/(kg·K)] -> simulation units
+                    cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) == -4) {
+                    // sapphire disk: cp(T) from the Ditmars (1982) analytic law
+                    cp_a(i,j,k) = Real(cryo_grid::cp_sap(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) == -5) {
+                    // diamond disk: cp(T) from the DeSorbo (1953) spline
+                    cp_a(i,j,k) = Real(cryo_grid::cp_dia(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) == -6) {
+                    // gold plunger / debug sphere (same material as the EM grid)
+                    cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) == -7) {
+                    // wiper solid (PTFE) — constant cp, T-variation small at cryo temps
+                    cp_a(i,j,k) = cryo_props::cp_wip;
+                } else if (ct(i,j,k) == -1) {
+                    // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
+                    cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
+                } else if (ct(i,j,k) >= 0) {
+                    // TODO(sample-T-props): make the sample (water) cp temperature-
+                    // dependent, e.g. cp_water(T_a(i,j,k)) spline, like ethane above.
+                    cp_a(i,j,k) = cryo_props::cp_sam;
+                } else {
+                    cp_a(i,j,k) = m_cp;
+                }
+            });
+        } else {
             Real l_cp = m_cp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cp_a(i,j,k) = l_cp;
             });
-            continue;
         }
-
-#ifdef INCFLO_SIM_CRYO
-        auto const& ct  = ld.cell_type.const_array(mfi);
-        auto const& T_a = ld.temperature.const_array(mfi);
-        ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (ct(i,j,k) == -2) {
-                // cp from spline [J/(g·K)] -> [J/(kg·K)] -> simulation units
-                cp_a(i,j,k) = Real(cryo_props::cp_typeK(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) == -3) {
-                // gold EM grid: cp(T) [J/(g·K)] -> [J/(kg·K)] -> simulation units
-                cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) == -4) {
-                // sapphire disk: cp(T) from the Ditmars (1982) analytic law
-                cp_a(i,j,k) = Real(cryo_grid::cp_sap(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) == -5) {
-                // diamond disk: cp(T) from the DeSorbo (1953) spline
-                cp_a(i,j,k) = Real(cryo_grid::cp_dia(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) == -6) {
-                // gold plunger / debug sphere (same material as the EM grid)
-                cp_a(i,j,k) = Real(cryo_grid::cp_gold(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) == -7) {
-                // wiper solid (PTFE) — constant cp, T-variation small at cryo temps
-                cp_a(i,j,k) = cryo_props::cp_wip;
-            } else if (ct(i,j,k) == -1) {
-                // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
-                cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
-            } else if (ct(i,j,k) >= 0) {
-                // TODO(sample-T-props): make the sample (water) cp temperature-
-                // dependent, e.g. cp_water(T_a(i,j,k)) spline, like ethane above.
-                cp_a(i,j,k) = cryo_props::cp_sam;
-            } else {
-                cp_a(i,j,k) = m_cp;
-            }
-        });
 #else
         Real l_cp = m_cp;
         ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -87,13 +85,11 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
 
 // Thermal-mass density: material density by cell_type, decoupled from the
 // (uniform) hydrodynamic density. Valid cells only (callers use tileboxes).
+// Gated on m_sim_cryo alone; fallback copies density_nph for non-cryo runs.
 void incflo::compute_rho_th (int lev, MultiFab& rho_th) const
 {
 #ifdef INCFLO_SIM_CRYO
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
-    if (m_sim_cryo && conservative_temperature)
+    if (m_sim_cryo)
     {
         auto& ld = *m_leveldata[lev];
 #ifdef _OPENMP
@@ -138,9 +134,7 @@ void incflo::smooth_temperature_property_at_interfaces (int lev,
 {
     property.FillBoundary(geom[lev].periodicity());
 
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-    if (!(conservative_temperature && smooth_iters > 0 && smooth_weight > Real(0.0))) {
+    if (!(smooth_iters > 0 && smooth_weight > Real(0.0))) {
         return;
     }
 

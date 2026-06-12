@@ -30,9 +30,18 @@ void incflo::init_advection ()
     m_iconserv_density.resize(1, 1);
     m_iconserv_density_d.resize(1, 1);
 
-    // Temperature defaults to non-conservative update.
+    // Temperature advection is always convective (u·grad T): exact for div u = 0
+    // and correct for the re-stamped material map. Discrete conservation is
+    // handled by the diffusion step (chi = rho_mat*cp(T), eta = k(T)).
     m_iconserv_temperature.resize(1, 0);
-    pp.queryarr("temp_is_conservative", m_iconserv_temperature, 0, 1);
+    {
+        Vector<int> deprecated_flag(1, 0);
+        if (pp.queryarr("temp_is_conservative", deprecated_flag, 0, 1) && deprecated_flag[0] != 0)
+        {
+            amrex::Print() << "WARNING: incflo.temp_is_conservative is ignored; "
+                              "temperature advection is always convective (u·grad T).\n";
+        }
+    }
     m_iconserv_temperature_d.resize(1);
     // copy
 #ifdef AMREX_USE_GPU
@@ -75,8 +84,6 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
 {
     bool fluxes_are_area_weighted = false;
     bool knownFaceStates          = false; // HydroUtils always recompute face states
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
 
 #ifdef AMREX_USE_EB
     amrex::Print() << "REDISTRIBUTION TYPE " << m_redistribution_type << std::endl;
@@ -216,20 +223,15 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
             for (int lev = 0; lev <= finest_level; ++lev) {
                 auto& ld = *m_leveldata[lev];
                 compute_cp(lev, ld.cp);
-                MultiFab rho_th_lev;
-                if (conservative_temperature) {
-                    rho_th_lev.define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
-                    compute_rho_th(lev, rho_th_lev);
-                }
+                MultiFab rho_th_lev(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+                compute_rho_th(lev, rho_th_lev);
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
                 for (MFIter mfi(*density[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     Box const& bx = mfi.tilebox();
                     Array4<Real const> const& cp    = ld.cp.const_array(mfi);
-                    Array4<Real const> const rho = conservative_temperature
-                        ? rho_th_lev.const_array(mfi)
-                        : density[lev]->const_array(mfi);
+                    Array4<Real const> const rho = rho_th_lev.const_array(mfi);
                     Array4<Real      > const& tem_f = tem_forces[lev]->array(mfi);
                     if (m_godunov_include_diff_in_forcing) {
                         Array4<Real const> const& laps = ld.laps_tem_o.const_array(mfi);
@@ -817,7 +819,7 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
             // Temperature
             // ************************************************************************
             if (m_use_temperature) {
-                // Temperature adveciton is always non-conservative
+                // Temperature advection is always non-conservative (convective form)
 
                 face_comp = (m_advect_tracer && (m_ntrac>0)) ? m_ntrac : 0;
                 face_comp += (m_constant_density) ? AMREX_SPACEDIM : AMREX_SPACEDIM+1;

@@ -11,24 +11,16 @@ void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
         return;
     }
 
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
-
     constexpr Real m_half = Real(0.5);
     Real l_dt = m_dt;
 
-    Vector<MultiFab> energy(finest_level + 1);
+    // Thermal mass vhc = rho_mat(cell_type)*cp(T); rho from the same cell_type snapshot
+    // compute_cp uses, decoupled from the uniform hydro density.
     Vector<MultiFab> rho_th(finest_level + 1);
-    if (conservative_temperature)
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            energy[lev].define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
-            // Thermal mass from the same cell_type snapshot compute_cp uses,
-            // instead of the (old-time-stamped) hydrodynamic density.
-            rho_th[lev].define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
-            compute_rho_th(lev, rho_th[lev]);
-        }
+        rho_th[lev].define(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+        compute_rho_th(lev, rho_th[lev]);
     }
 
     for (int lev = 0; lev <= finest_level; lev++)
@@ -44,108 +36,43 @@ void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
             Box const &bx = mfi.tilebox();
             Array4<Real const> const &tem_o = ld.temperature_o.const_array(mfi);
             Array4<Real> const &tem = ld.temperature.array(mfi);
-            // In conservative mode rho_o == rho_h: material density depends only
-            // on the current cell_type, so the old/half-time distinction is moot.
-            Array4<Real const> const rho_o = conservative_temperature
-                ? rho_th[lev].const_array(mfi) : ld.density_o.const_array(mfi);
-            Array4<Real const> const rho_h = conservative_temperature
-                ? rho_th[lev].const_array(mfi) : ld.density_nph.const_array(mfi);
+            Array4<Real const> const rho_h = rho_th[lev].const_array(mfi);
             Array4<Real const> const &dtdt_o = ld.conv_temperature_o.const_array(mfi);
             // temperature forcing term (Q) is in scratch
             Array4<Real> const &tem_f = scratch[lev].array(mfi);
             Array4<Real const> const &cp = ld.cp.const_array(mfi);
 
-            if (conservative_temperature)
-            {
-                Array4<Real> const &ener = energy[lev].array(mfi);
-
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                            { ener(i, j, k) = rho_o(i, j, k) * cp(i, j, k) * tem_o(i, j, k); });
-            }
-
             if (step_type == StepType::Corrector)
             {
                 Array4<Real const> const &dtdt_n = ld.conv_temperature.const_array(mfi);
 
-                if (conservative_temperature)
+                if (m_diff_type == DiffusionType::Explicit)
                 {
-                    Array4<Real> const &ener = energy[lev].array(mfi);
-                    // TODO: check if this is needed
-                    constexpr Real rhocp_floor = Real(1.0e-12);
-
-                    if (m_diff_type == DiffusionType::Explicit)
-                    {
-                        Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
-                        Array4<Real const> const &laps_n = ld.laps_tem.const_array(mfi);
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                            Real ener_new = ener(i,j,k) + l_dt *
-                                ( m_half * rho_h(i,j,k) * cp(i,j,k) * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
-                                  + tem_f(i,j,k)
-                                  + m_half * (laps_o(i,j,k) + laps_n(i,j,k)) );
-                            Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                            tem(i,j,k) = ener_new / rhocp;
-                            ener(i,j,k) = ener_new; });
-                    }
-                    else if (m_diff_type == DiffusionType::Crank_Nicolson)
-                    {
-                        Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                            Real ener_new = ener(i,j,k) + l_dt *
-                                ( m_half * rho_h(i,j,k) * cp(i,j,k) * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
-                                  + tem_f(i,j,k)
-                                  + m_half * laps_o(i,j,k) );
-                            Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                            tem(i,j,k) = ener_new / rhocp;
-                            // Save rhoCp for use in implicit solve.
-                            tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k);
-                            ener(i,j,k) = ener_new; });
-                    }
-                    else if (m_diff_type == DiffusionType::Implicit)
-                    {
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                            Real ener_new = ener(i,j,k) + l_dt *
-                                ( m_half * rho_h(i,j,k) * cp(i,j,k) * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
-                                  + tem_f(i,j,k) );
-                            Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                            tem(i,j,k) = ener_new / rhocp;
-                            // Save rhoCp for use in implicit solve.
-                            tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k);
-                            ener(i,j,k) = ener_new; });
-                    }
+                    Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
+                    Array4<Real const> const &laps_n = ld.laps_tem.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                { tem(i, j, k) = tem_o(i, j, k) + l_dt *
+                                                                      (m_half * (dtdt_o(i, j, k) + dtdt_n(i, j, k)) + (tem_f(i, j, k) + m_half * (laps_o(i, j, k) + laps_n(i, j, k))) / (rho_h(i, j, k) * cp(i, j, k))); });
                 }
-                else
+                else if (m_diff_type == DiffusionType::Crank_Nicolson)
                 {
-                    if (m_diff_type == DiffusionType::Explicit)
-                    {
-                        Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
-                        Array4<Real const> const &laps_n = ld.laps_tem.const_array(mfi);
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    { tem(i, j, k) = tem_o(i, j, k) + l_dt *
-                                                                          (m_half * (dtdt_o(i, j, k) + dtdt_n(i, j, k)) + (tem_f(i, j, k) + m_half * (laps_o(i, j, k) + laps_n(i, j, k))) / (rho_h(i, j, k) * cp(i, j, k))); });
-                    }
-                    else if (m_diff_type == DiffusionType::Crank_Nicolson)
-                    {
-                        Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                            tem(i,j,k) = tem_o(i,j,k) + l_dt *
-                                ( m_half * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
-                                  + (tem_f(i,j,k) + m_half * laps_o(i,j,k))
-                                    / (rho_h(i,j,k) * cp(i,j,k)) );
-                            tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
-                    }
-                    else if (m_diff_type == DiffusionType::Implicit)
-                    {
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                            tem(i,j,k) = tem_o(i,j,k) + l_dt *
-                                ( m_half * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
-                                  + tem_f(i,j,k) / (rho_h(i,j,k) * cp(i,j,k)) );
-                            tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
-                    }
+                    Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                {
+                        tem(i,j,k) = tem_o(i,j,k) + l_dt *
+                            ( m_half * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
+                              + (tem_f(i,j,k) + m_half * laps_o(i,j,k))
+                                / (rho_h(i,j,k) * cp(i,j,k)) );
+                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
+                }
+                else if (m_diff_type == DiffusionType::Implicit)
+                {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                {
+                        tem(i,j,k) = tem_o(i,j,k) + l_dt *
+                            ( m_half * (dtdt_o(i,j,k) + dtdt_n(i,j,k))
+                              + tem_f(i,j,k) / (rho_h(i,j,k) * cp(i,j,k)) );
+                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
                 }
             }
             else
@@ -156,103 +83,87 @@ void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
                 {
                     Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
 
-                    if (conservative_temperature)
-                    {
-                        Array4<Real> const &ener = energy[lev].array(mfi);
-                        constexpr Real rhocp_floor = Real(1.0e-12);
-
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                        Real ener_new = ener(i,j,k) + l_dt *
-                            ( rho_h(i,j,k) * cp(i,j,k) * dtdt_o(i,j,k)
-                              + tem_f(i,j,k) + laps_o(i,j,k) );
-                        Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                        tem(i,j,k) = ener_new / rhocp;
-                        ener(i,j,k) = ener_new; });
-                    }
-                    else
-                    {
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    { tem(i, j, k) = tem_o(i, j, k) + l_dt *
-                                                                          (dtdt_o(i, j, k) + (tem_f(i, j, k) + laps_o(i, j, k)) / (rho_h(i, j, k) * cp(i, j, k))); });
-                    }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                { tem(i, j, k) = tem_o(i, j, k) + l_dt *
+                                                                      (dtdt_o(i, j, k) + (tem_f(i, j, k) + laps_o(i, j, k)) / (rho_h(i, j, k) * cp(i, j, k))); });
                 }
                 else if (m_diff_type == DiffusionType::Crank_Nicolson)
                 {
                     Array4<Real const> const &laps_o = ld.laps_tem_o.const_array(mfi);
 
-                    if (conservative_temperature)
-                    {
-                        Array4<Real> const &ener = energy[lev].array(mfi);
-                        constexpr Real rhocp_floor = Real(1.0e-12);
-
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                        Real ener_new = ener(i,j,k) + l_dt *
-                            ( rho_h(i,j,k) * cp(i,j,k) * dtdt_o(i,j,k)
-                              + tem_f(i,j,k) + m_half * laps_o(i,j,k) );
-                        Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                        tem(i,j,k) = ener_new / rhocp;
-                        // Save rhoCp for use in implicit solve.
-                        // Reuse scratch space since we are done with forcing now.
-                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k);
-                        ener(i,j,k) = ener_new; });
-                    }
-                    else
-                    {
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                        tem(i,j,k) = tem_o(i,j,k) + l_dt *
-                            ( dtdt_o(i,j,k) + (tem_f(i,j,k) + m_half*laps_o(i,j,k))/(rho_h(i,j,k) * cp(i,j,k)) );
-                        // Save rhoCp for use in implicit solve.
-                        // Reuse scratch space since we are done with forcing now.
-                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
-                    }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                {
+                    tem(i,j,k) = tem_o(i,j,k) + l_dt *
+                        ( dtdt_o(i,j,k) + (tem_f(i,j,k) + m_half*laps_o(i,j,k))/(rho_h(i,j,k) * cp(i,j,k)) );
+                    // Save rhoCp for use in implicit solve.
+                    // Reuse scratch space since we are done with forcing now.
+                    tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
                 }
                 else if (m_diff_type == DiffusionType::Implicit)
                 {
-                    if (conservative_temperature)
-                    {
-                        Array4<Real> const &ener = energy[lev].array(mfi);
-                        constexpr Real rhocp_floor = Real(1.0e-12);
-
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                        Real ener_new = ener(i,j,k) + l_dt *
-                            (rho_h(i,j,k) * cp(i,j,k) * dtdt_o(i,j,k) + tem_f(i,j,k));
-                        Real rhocp = amrex::max(amrex::Math::abs(rho_h(i,j,k) * cp(i,j,k)), rhocp_floor);
-                        tem(i,j,k) = ener_new / rhocp;
-                        // Save rhoCp for use in implicit solve.
-                        // Reuse scratch space since we are done with forcing now.
-                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k);
-                        ener(i,j,k) = ener_new; });
-                    }
-                    else
-                    {
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                                    {
-                        tem(i,j,k) = tem_o(i,j,k) + l_dt *
-                            (dtdt_o(i,j,k) + tem_f(i,j,k)) / (rho_h(i,j,k) * cp(i,j,k));
-                        // Save rhoCp for use in implicit solve.
-                        // Reuse scratch space since we are done with forcing now.
-                        tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
-                    }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                                {
+                    // Note: only the forcing is divided by vhc; the advective
+                    // tendency dtdt is already a temperature tendency (u·grad T).
+                    tem(i,j,k) = tem_o(i,j,k) + l_dt *
+                        (dtdt_o(i,j,k) + tem_f(i,j,k) / (rho_h(i,j,k) * cp(i,j,k)));
+                    // Save rhoCp for use in implicit solve.
+                    // Reuse scratch space since we are done with forcing now.
+                    tem_f(i,j,k) = rho_h(i,j,k) * cp(i,j,k); });
                 }
             }
         } // mfi
     } // lev
+}
 
-    if (conservative_temperature)
+// Total thermal energy sum(vhc*T*dV) over the AMR hierarchy (cells covered by
+// a finer level are masked out). Diagnostic only: the re-stamped material map
+// and the top temperature BC inject/remove energy, so this monitors trends and
+// catches drift from the diffusion step, not a closed budget.
+Real incflo::compute_thermal_energy()
+{
+    BL_PROFILE("incflo::compute_thermal_energy");
+
+    Real energy = Real(0.0);
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
-        for (int lev = finest_level - 1; lev >= 0; --lev)
+        auto &ld = *m_leveldata[lev];
+        compute_cp(lev, ld.cp);
+        MultiFab vhc(grids[lev], dmap[lev], 1, 0, MFInfo(), Factory(lev));
+        compute_rho_th(lev, vhc);
+        MultiFab::Multiply(vhc, ld.cp, 0, 0, 1, 0); // vhc = rho_mat * cp(T)
+
+        iMultiFab level_mask;
+        if (lev < finest_level)
         {
-#ifdef AMREX_USE_EB
-            amrex::EB_average_down(energy[lev + 1], energy[lev], 0, 1, refRatio(lev));
-#else
-            amrex::average_down(energy[lev + 1], energy[lev], 0, 1, refRatio(lev));
-#endif
+            level_mask = makeFineMask(grids[lev], dmap[lev], grids[lev + 1],
+                                      refRatio(lev), 1, 0);
         }
+        else
+        {
+            level_mask.define(grids[lev], dmap[lev], 1, 0);
+            level_mask.setVal(1);
+        }
+
+        auto const &dx = geom[lev].CellSizeArray();
+        Real const cell_vol = AMREX_D_TERM(dx[0], *dx[1], *dx[2]);
+
+        energy += cell_vol *
+                  amrex::ReduceSum(vhc, ld.temperature, level_mask, 0,
+                                   [=] AMREX_GPU_HOST_DEVICE(Box const &bx,
+                                                             Array4<Real const> const &vhc_arr,
+                                                             Array4<Real const> const &t_arr,
+                                                             Array4<int const> const &mask_arr) -> Real
+                                   {
+                                       Real e = Real(0.0);
+                                       amrex::Loop(bx, [=, &e](int i, int j, int k) noexcept
+                                                   { e += mask_arr(i, j, k) * vhc_arr(i, j, k) * t_arr(i, j, k); });
+                                       return e;
+                                   });
     }
+
+    ParallelDescriptor::ReduceRealSum(energy);
+    return energy;
 }
 
 void incflo::update_temperature(StepType step_type, Vector<MultiFab *> const &tem_eta, Vector<MultiFab> &scratch)
@@ -263,9 +174,6 @@ void incflo::update_temperature(StepType step_type, Vector<MultiFab *> const &te
     {
         return;
     }
-
-    bool const conservative_temperature =
-        !m_iconserv_temperature.empty() && m_iconserv_temperature[0] == 1;
 
     Vector<MultiFab const *> tem_eta_const;
     tem_eta_const.reserve(tem_eta.size());
@@ -312,7 +220,7 @@ void incflo::update_temperature(StepType step_type, Vector<MultiFab *> const &te
         }
         Real dt_diff = (m_diff_type == DiffusionType::Implicit) ? m_dt : Real(0.5) * m_dt;
 
-        // scratch holds rhoCp; solve directly for T with chi=rhoCp for both modes.
+        // scratch holds vhc = rho_mat*cp(T); implicit solve uses chi = vhc, eta = k(T).
         diffuse_temperature(get_temperature_new(), GetVecOfPtrs(scratch), tem_eta_const,
                             dt_diff);
     }
