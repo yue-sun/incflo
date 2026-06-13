@@ -68,6 +68,9 @@ struct CryoSolid
 int m_cryo_n_solids = 0;
 amrex::Vector<CryoSolid> m_cryo_solids;
 
+// Discrete biological samples (see cryo_sample.{H,cpp})
+#include <cryo_sample.H>
+
 void cryo_read_solids();
 
 void cryo_plunge_state(amrex::Real time,

@@ -35,6 +35,13 @@ void incflo::cryo_update(Real time)
         auto const &problo = geom[lev].ProbLoArray();
         auto const &probhi = geom[lev].ProbHiArray();
 
+        // Sample grid surface (constant across cells/levels for this geometry).
+        Real sample_face_y = Real(0.0), sample_radius = Real(0.0), sample_zoff = Real(0.0);
+        bool const sample_grid_ok =
+            (m_cryo_n_samples > 0) &&
+            cryo_sample_grid(m_cryo_geometry, plunge_disp,
+                             sample_face_y, sample_radius, sample_zoff);
+
         for (MFIter mfi(ld.density, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box const &bx = mfi.tilebox();
@@ -66,6 +73,15 @@ void incflo::cryo_update(Real time)
                                                   velx, vely, velz,
                                                   cell_type_ijk,
                                                   time, velz_plunge, plunge_disp);
+                            }
+                            // Discrete biological samples on the disk face
+                            if (sample_grid_ok)
+                            {
+                                cryo_apply_samples(x, y, z,
+                                                   velx, vely, velz,
+                                                   cell_type_ijk, velz_plunge,
+                                                   sample_face_y, sample_radius,
+                                                   sample_zoff);
                             }
                             // Set thermal properties and top temperature B.C.
                             cryo_set_thermal(i, j, k, x, y, z,
