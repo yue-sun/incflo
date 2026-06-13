@@ -117,6 +117,15 @@ void incflo::ApplyCorrector()
         }
     }
 
+#ifdef INCFLO_SIM_CRYO
+    // Re-impose the prescribed solid velocity before the corrector MAC projection.
+    // The new-time velocity coming in is the predictor's post-projection field, in
+    // which the solid cells were perturbed by the pressure correction (-dt/rho grad phi);
+    // refresh them to the exact plunge velocity so the corrector advective fluxes
+    // near the solid see the moving boundary, not the perturbed value.
+    cryo_update(new_time);
+#endif
+
     // *************************************************************************************
     // Compute the MAC-projected velocities at all levels
     // *************************************************************************************
@@ -172,8 +181,11 @@ void incflo::ApplyCorrector()
     // *************************************************************************************
     update_velocity(StepType::Corrector, vel_eta, vel_forces);
 #ifdef INCFLO_SIM_CRYO
-    // Zero solid-cell velocity before projection so the divergence source term
-    // (RHS of the Poisson equation) is consistent with the no-slip
+    // Impose the prescribed solid velocity (plunge speed) in the intermediate
+    // velocity before the projection, so the divergence source (RHS of the pressure
+    // Poisson solve) carries the moving-boundary condition. The projection itself
+    // perturbs these cells by -dt/rho grad phi; they are refreshed again at the
+    // start of the next step before the velocity is reused for advection.
     cryo_update(new_time);
 #endif
 
