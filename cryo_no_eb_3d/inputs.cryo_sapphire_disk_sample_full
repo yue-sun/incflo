@@ -10,7 +10,7 @@ steady_state            =   0           # Steady-state solver?
 #.......................................#
 incflo.fixed_dt         =   -1        # Use this constant dt if > 0
 incflo.cfl              =   0.9        # CFL factor
-incflo.thermal_cfl      =   10.0
+incflo.thermal_cfl      =   10000.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
@@ -48,8 +48,8 @@ incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower i
 incflo.probtype         =   3000
 incflo.sim_cryo         =   true
 incflo.cryo_geometry    =   4
-incflo.cryo_sample_layer           = 1
-incflo.cryo_sample_layer_thickness = 0.05   # 50 um, in mm
+incflo.cryo_sample_layer = 0
+incflo.cryo_sample_place = "../../data/samples/cells.samples_full"
 
 incflo.dt_min           =   1e-3
 incflo.cryo_plunge_vel  =   -1.0  0.0
@@ -61,7 +61,7 @@ incflo.cryo_temp_eth    =   90.0
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
 amr.n_cell              =   32 8 32  # Grid cells at coarsest AMRlevel
-amr.max_level           =   2           # Max AMR level in hierarchy 
+amr.max_level           =   3           # Max AMR level in hierarchy 
 amr.ref_ratio           =   4 4 4 4
 amr.max_grid_size       =   16 16 16  # Max grid size at AMR levels
 amr.blocking_factor     =   8           # Blocking factor for grids
