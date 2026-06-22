@@ -9,7 +9,7 @@ steady_state            =   0           # Steady-state solver?
 #         TIME STEP COMPUTATION         #
 #.......................................#
 incflo.fixed_dt         =   -1        # Use this constant dt if > 0
-incflo.cfl              =   0.9        # CFL factor
+incflo.cfl              =   0.5        # CFL factor (reduced from 0.9 to limit advective T overshoot at sharp interfaces)
 incflo.thermal_cfl      =   10000.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
@@ -39,7 +39,7 @@ incflo.mu               =   0.001966    # Dynamic viscosity coefficient
 incflo.use_temperature  =   true
 incflo.mu_T             =   0.000244    # For now using thermal diffusivity, but it should be thermal conductivity
 incflo.cp               =   1.0         # Set to 1 for now because the temperature update is non-conservative
-incflo.temp_iface_smooth_iters  =   0    # sharp interfaces: harmonic face k(T), no smoothing needed
+incflo.temp_iface_smooth_iters  =   4    # soften k(T)/cp(T) jump at metal/ethane interface; stabilizes implicit T-diffusion MLMG
 incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
