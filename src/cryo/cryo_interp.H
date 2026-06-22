@@ -24,6 +24,21 @@ namespace cryo_interp
                              double const (&xs)[N + 1],
                              double const (&c)[4][N]) noexcept
     {
+        // Clamp the argument to the spline's knot range so out-of-range
+        // inputs return the boundary value (flat extrapolation) instead of an
+        // unbounded cubic extrapolation. Without this, a temperature that
+        // overshoots outside [xs[0], xs[N]] -- e.g. a sharp advective
+        // under/overshoot at a material interface -- produces a garbage or
+        // negative cp(T)/k(T), which makes the implicit temperature-diffusion
+        // operator non-SPD and blows up the MLMG solve. (Callers that already
+        // clamp, such as the thermocouple-motion spline with xs[0]=0, are
+        // unaffected since this clamp is to the same range.)
+        {
+            amrex::Real const xlo = static_cast<amrex::Real>(xs[0]);
+            amrex::Real const xhi = static_cast<amrex::Real>(xs[N]);
+            x = (x < xlo) ? xlo : ((x > xhi) ? xhi : x);
+        }
+
         int idx = 0;
         for (int i = 0; i < N; ++i)
         {
