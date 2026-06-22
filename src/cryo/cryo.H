@@ -11,18 +11,12 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-// TODO: see if we need cryo_geometries.H for more complex geometry definitions; if so, add the geometry-specific
 // Debug sphere
 amrex::Real rdebug = amrex::Real(0.5); // debug sphere radius: 0.5mm
 
-// EM grid (gold)
-amrex::Real Remg = amrex::Real(1.5);         // EM grid outer radius: 1.5mm
-amrex::Real wemg = amrex::Real(0.025 / 2);   // EM grid width: 25um
-amrex::Real remg = Remg - amrex::Real(0.24); // EM grid ring width: 240um
-
-// Sapphire disk
-amrex::Real Rsap = amrex::Real(1.5);      // sapphire disk radius: 1.5mm
-amrex::Real wsap = amrex::Real(0.16 / 2); // sapphire disk width: 160um
+// The disk-family geometries (gold EM grid / sapphire / diamond: radius,
+// thickness, mesh dimensions) live in the cryo_geom::disks table in
+// cryo_geometries.H — the single source of truth shared with cryo_sample.cpp.
 
 // Sample
 amrex::Real wsam = amrex::Real(0.01); // sample width: 10um
@@ -113,11 +107,5 @@ void cryo_set_thermal(int i, int j, int k,
                       amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
                       amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
                       amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi);
-
-void cryo_load_emgrid();
-
-void cryo_load_disk();
-
-void cryo_load_sample();
 
 #endif

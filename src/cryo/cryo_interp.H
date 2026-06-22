@@ -57,7 +57,7 @@ namespace cryo_interp
     }
 
     // -----------------------------------------------------------------------
-    // Closed-form (non-spline) material laws used by cryo_grid_properties.H.
+    // Closed-form (non-spline) material laws used by cryo_grid.H.
     // -----------------------------------------------------------------------
 
     // Sapphire (alpha-Al2O3) MOLAR heat capacity from the Ditmars et al. (1982,

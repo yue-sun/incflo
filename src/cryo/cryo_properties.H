@@ -5,7 +5,7 @@
 #include <AMReX_GpuQualifiers.H>
 
 #include <cryo_interp.H>
-#include <cryo_grid_properties.H>   // cryo_grid::cp_*/k_* for gold/sapphire/diamond
+#include <cryo_grid.H>   // cryo_grid::cp_*/k_* + geometry table for gold/sapphire/diamond
 
 // Material properties for the cryo simulation: bulk SI constants, the
 // physical -> simulation unit conversions, and the temperature-dependent

@@ -1,5 +1,6 @@
 #include <incflo.H>
 #include <cryo_tc_experiment.H>
+#include <cryo_grid.H>
 
 using namespace amrex;
 
@@ -386,7 +387,22 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
     // Set geometry and velocity based on the plunging protocol
     // ***************************************************************
 
-    if (m_cryo_geometry == -1)
+    if (cryo_grid::GridGeom const *grid = cryo_grid::read_grid_geom(m_cryo_geometry))
+    {
+        // Disk family (gold EM grid / sapphire / diamond): a thin disk in the
+        // x-z plane, normal along y, plunged edge-on. The disk body and its
+        // optional +y-face sample layer co-move, so share the plunge velocity.
+        // See cryo_grid.H for the per-material table.
+        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid->radius;
+        Real const zoff = init_z + plunge_disp;
+        if (!cryo_grid::apply_disk(*grid, x, y, z, zoff,
+                                   m_cryo_sample_layer, m_cryo_sample_layer_thickness,
+                                   cell_type_ijk, velx, vely, velz, velz_plunge))
+        {
+            cell_type_ijk = -1;
+        }
+    }
+    else if (m_cryo_geometry == -1)
     {
         // -1: debug sphere, static
         Real Rdebug = 0.2;
@@ -395,62 +411,6 @@ void incflo::cryo_set_geom_velocity(int i, int j, int k,
         if (geom_sphere < Rdebug * Rdebug)
         {
             cell_type_ijk = -6;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = velz_plunge;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == 4)
-    {
-        // -4: sapphire disk
-        Real R_sap_disk = Real(1.5);      // sapphire disk radius: 1.5mm
-        Real w_sap_disk = Real(0.16 / 2); // sapphire disk width: 160um
-
-        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : R_sap_disk;
-        Real zoff = init_z + plunge_disp;
-        Real geom_sap_disk = x * x + (z - zoff) * (z - zoff);
-        Real geom_sap_disk_thickness = amrex::Math::abs(y);
-        // Disk geometry, plus an optional sample layer (water properties)
-        // coating its +y face; both move with the disk, so share kinematics.
-        bool const in_disk = geom_sap_disk_thickness < w_sap_disk;
-        bool const in_sample =
-            m_cryo_sample_layer && y >= w_sap_disk &&
-            y < w_sap_disk + m_cryo_sample_layer_thickness;
-        if (geom_sap_disk < R_sap_disk * R_sap_disk && (in_disk || in_sample))
-        {
-            cell_type_ijk = in_disk ? -4 : 0;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = velz_plunge;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == 5)
-    {
-        // -5: diamond disk
-        Real R_dia_disk = Real(1.5);     // diamond disk radius: 1.5mm
-        Real w_dia_disk = Real(0.1 / 2); // diamond disk width: 0.1mm
-
-        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : R_dia_disk;
-        Real zoff = init_z + plunge_disp;
-        Real geom_dia_disk = x * x + (z - zoff) * (z - zoff);
-        Real geom_dia_disk_thickness = amrex::Math::abs(y);
-        // Disk geometry, plus an optional sample layer (water properties)
-        // coating its +y face; both move with the disk, so share kinematics.
-        bool const in_disk = geom_dia_disk_thickness < w_dia_disk;
-        bool const in_sample =
-            m_cryo_sample_layer && y >= w_dia_disk &&
-            y < w_dia_disk + m_cryo_sample_layer_thickness;
-        if (geom_dia_disk < R_dia_disk * R_dia_disk && (in_disk || in_sample))
-        {
-            cell_type_ijk = in_disk ? -5 : 0;
             velx = Real(0.0);
             vely = Real(0.0);
             velz = velz_plunge;

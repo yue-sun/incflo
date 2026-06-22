@@ -1,4 +1,5 @@
 #include <incflo.H>
+#include <cryo_grid.H>
 
 #include <fstream>
 #include <sstream>
@@ -100,14 +101,15 @@ void incflo::cryo_read_samples ()
 bool incflo::cryo_sample_grid (int geometry, Real plunge_disp,
                                Real& face_y, Real& radius, Real& zoff) const
 {
-    Real R, w;
-    if (geometry == 4) { R = Real(1.5); w = Real(0.16 / 2); }       // sapphire disk
-    else if (geometry == 5) { R = Real(1.5); w = Real(0.1 / 2); }   // diamond disk
-    else { return false; }                                          // (gold grid: future)
+    // Discrete samples sit on the +y face of any disk-family host (gold EM
+    // grid / sapphire / diamond). The geometry table is the single source of
+    // truth for radius and face height; see cryo_geometries.H.
+    cryo_grid::GridGeom const *grid = cryo_grid::read_grid_geom(geometry);
+    if (!grid) { return false; }
 
-    Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : R;
-    face_y = w;
-    radius = R;
+    Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid->radius;
+    face_y = grid->half_thick;
+    radius = grid->radius;
     zoff   = init_z + plunge_disp;
     return true;
 }
