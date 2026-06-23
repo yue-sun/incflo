@@ -76,14 +76,13 @@ namespace cryo_props
     constexpr double rho_plu_phys = 19300.0;
     constexpr double cp_plu_phys = 125.0;
     constexpr double k_plu_phys = 345.0;
-    // Sample (water)
-    // TODO(sample-T-props): these are constant water values at a single
-    // temperature; replace with temperature-dependent cp_water(T)/lam_water(T)
-    // splines (see thermal_properties below + the ethane interpolants) and wire
-    // them into incflo_specific_heat.cpp / incflo_rheology.cpp.
+    // Sample (water).  The thermal dispatchers use the temperature-dependent
+    // cp_water(T)/lam_water(T) splines below (thermal_properties); these
+    // single-temperature constants remain as representative values for rho and
+    // for dt/CFL estimates.
     constexpr double rho_sam_phys = 1000.0;
-    constexpr double cp_sam_phys = 4187.0;
-    constexpr double k_sam_phys = 0.598;
+    constexpr double cp_sam_phys = 4187.0;   // ~ cp_water near 15 C
+    constexpr double k_sam_phys = 0.598;     // ~ lam_water at 20 C
     // Sapphire disk
     constexpr double rho_sap_phys = 3980.0;
     constexpr double cp_sap_phys = 700.0; // TODO: fix average
@@ -203,6 +202,31 @@ namespace cryo_props
             {-7.70873116e-04, -8.40613092e-04, -8.97196727e-04, -9.40599999e-04, -9.68403276e-04, -9.81786895e-04, -9.87449142e-04, -9.84416535e-04, -9.75884718e-04, -9.65044592e-04},
             {+2.55480000e-01, +2.47410000e-01, +2.38710000e-01, +2.29510000e-01, +2.19950000e-01, +2.10190000e-01, +2.00340000e-01, +1.90470000e-01, +1.80670000e-01, +1.70960000e-01},
         };
+
+        // -------------------------------------------------------------------
+        // Liquid water (sample), Engineering ToolBox / IAPWS, 1 atm, 0-100 C
+        //   cp_water : J / (g K)      lam_water : W / (m K)
+        // Cubic spline (not-a-knot); see theory/material_properties.ipynb.
+        // eval_piecewise_cubic clamps to [273.15, 373.15] K, so outside the
+        // liquid range the closest known value is held (no extrapolation).
+        // -------------------------------------------------------------------
+        static constexpr double cp_water_knots[11] = {
+            273.150, 283.150, 293.150, 303.150, 313.150, 323.150, 333.150, 343.150, 353.150, 363.150, 373.150};
+        static constexpr double cp_water_c[4][10] = {
+            {-1.22237819e-06, -1.22237819e-06, -3.88109045e-07, -2.25185628e-07, -1.11148441e-07, -3.02206063e-08, +3.20308665e-08, +2.09714040e-09, +5.95805719e-08, +5.95805719e-08},
+            {+1.03171346e-04, +6.65000000e-05, +2.98286543e-05, +1.81853829e-05, +1.14298141e-05, +8.09536082e-06, +7.18874264e-06, +8.14966863e-06, +8.21258284e-06, +1.00000000e-05},
+            {-3.34947564e-03, -1.65276218e-03, -6.89475638e-04, -2.09335266e-04, +8.68167035e-05, +2.82068452e-04, +4.34909487e-04, +5.88293600e-04, +7.51916114e-04, +9.34041943e-04},
+            {+4.21990000e+00, +4.19550000e+00, +4.18440000e+00, +4.18010000e+00, +4.17960000e+00, +4.18150000e+00, +4.18510000e+00, +4.19020000e+00, +4.19690000e+00, +4.20530000e+00},
+        };
+
+        static constexpr double lam_water_knots[11] = {
+            273.150, 283.150, 293.150, 303.150, 313.150, 323.150, 333.150, 343.150, 353.150, 363.150, 373.150};
+        static constexpr double lam_water_c[4][10] = {
+            {+9.86249693e-08, +9.86249693e-08, +8.68751534e-08, +6.38744170e-08, +4.76271784e-08, +3.56168692e-08, +9.90534487e-09, +4.76175135e-09, -4.89523503e-08, -4.89523503e-08},
+            {-2.04587491e-05, -1.75000000e-05, -1.45412509e-05, -1.19349963e-05, -1.00187638e-05, -8.58994845e-06, -7.52144238e-06, -7.22428203e-06, -7.08142949e-06, -8.55000000e-06},
+            {+2.48372499e-03, +2.10413750e-03, +1.78372499e-03, +1.51896252e-03, +1.29942492e-03, +1.11333780e-03, +9.52223889e-04, +8.04766645e-04, +6.61709530e-04, +5.05395235e-04},
+            {+5.55750000e-01, +5.78640000e-01, +5.98030000e-01, +6.14500000e-01, +6.28560000e-01, +6.40600000e-01, +6.50910000e-01, +6.59690000e-01, +6.67020000e-01, +6.72880000e-01},
+        };
     } // namespace thermal_properties
 
     // Material (thermal-mass) density by cell_type [sim units]. This is the
@@ -255,6 +279,23 @@ namespace cryo_props
     {
         T_K = (T_K > amrex::Real(184.57)) ? amrex::Real(184.57) : T_K;
         return cryo_interp::eval_piecewise_cubic(T_K, thermal_properties::lam_eth_knots, thermal_properties::lam_eth_c);
+    }
+
+    // Liquid-water (sample) interpolants. eval_piecewise_cubic clamps to the
+    // [273.15, 373.15] K knot range, so below 0 C / above 100 C the closest
+    // known value is held (no extrapolation) -- matches material_properties.ipynb.
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        amrex::Real
+        cp_water(amrex::Real T_K) noexcept
+    {
+        return cryo_interp::eval_piecewise_cubic(T_K, thermal_properties::cp_water_knots, thermal_properties::cp_water_c);
+    }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        amrex::Real
+        lam_water(amrex::Real T_K) noexcept
+    {
+        return cryo_interp::eval_piecewise_cubic(T_K, thermal_properties::lam_water_knots, thermal_properties::lam_water_c);
     }
 
 } // namespace cryo_props

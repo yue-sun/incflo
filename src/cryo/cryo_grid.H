@@ -48,9 +48,9 @@ namespace cryo_grid
         static constexpr double k_gold_knots[6] = {
             90.0, 100.0, 150.0, 200.0, 250.0, 290.0};
         static constexpr double k_gold_c[4][5] = {
-            {-1.30417074e-05, -1.30417074e-05, +4.34180515e-06, -4.32551320e-06, -4.32551320e-06},
-            {+1.91291952e-03, +1.52166830e-03, -4.34587814e-04, +2.16682959e-04, -4.32144021e-04},
-            {-1.17825024e-01, -8.34791463e-02, -2.91251222e-02, -4.00203649e-02, -5.07934181e-02},
+            {-1.30213425e-05, -1.30213425e-05, +4.27256435e-06, -4.06891496e-06, -4.06891496e-06},
+            {+1.91149397e-03, +1.52085370e-03, -4.32347670e-04, +2.08536983e-04, -4.01800261e-04},
+            {-1.17812805e-01, -8.34893288e-02, -2.90640274e-02, -4.02545617e-02, -4.99177256e-02},
             {+3.28000000e+02, +3.27000000e+02, +3.25000000e+02, +3.23000000e+02, +3.21000000e+02},
         };
 
@@ -125,10 +125,10 @@ namespace cryo_grid
         amrex::Real bar_half;       // mesh: bar half-width [mm]
     };
 
-    // Single source of truth for the disk family. All lengths in mm.
+    // Geometry for the disk family. All lengths in mm.
     static constexpr GridGeom grids[] = {
         // id    R       w       mat   mesh    rim     pitch   bar
-        {  3, 1.5,    0.0125,  -3,   true,   1.26,   0.06,   0.0125 },  // gold EM grid (~300-mesh)
+        {  3, 1.525,  0.0125,  -3,   true,   1.285,  0.06,   0.0125 },  // gold EM grid: 3.05mm dia, 240um rim, 60um pitch
         {  4, 1.5,    0.08,    -4,   false,  0.0,    0.0,    0.0    },  // sapphire (160um)
         {  5, 1.5,    0.05,    -5,   false,  0.0,    0.0,    0.0    },  // diamond (100um)
     };

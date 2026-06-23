@@ -184,11 +184,9 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
                     eta(i, j, k) = Real(cryo_grid::k_gold(T_a(i,j,k))) * cryo_props::conv_k;
                 } else if (ct(i, j, k) == -7) { // wiper solid (PTFE)
                     eta(i, j, k) = cryo_props::k_wip;
-                } else if (ct(i, j, k) >= 0) { // samples
-                    // TODO(sample-T-props): make the sample (water) conductivity
-                    // temperature-dependent, e.g. lam_water(T_a(i,j,k)) spline,
-                    // like the ethane branch below.
-                    eta(i, j, k) = cryo_props::k_sam;
+                } else if (ct(i, j, k) >= 0) { // sample (water) — temperature-dependent
+                    // lambda [W/(m·K)] -> simulation units (clamped to 0-100 C)
+                    eta(i, j, k) = Real(cryo_props::lam_water(T_a(i,j,k))) * cryo_props::conv_k;
                 } else if (ct(i, j, k) == -1) { // liquid ethane — temperature-dependent (NIST spline)
                     // lambda [W/(m·K)] -> simulation units
                     eta(i, j, k) = Real(cryo_props::lam_ethane(T_a(i,j,k))) * cryo_props::conv_k;

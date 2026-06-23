@@ -54,9 +54,9 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
                     // liquid ethane: cp from NIST spline [J/(g·K)] -> [J/(kg·K)] -> sim units
                     cp_a(i,j,k) = Real(cryo_props::cp_ethane(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
                 } else if (ct(i,j,k) >= 0) {
-                    // TODO(sample-T-props): make the sample (water) cp temperature-
-                    // dependent, e.g. cp_water(T_a(i,j,k)) spline, like ethane above.
-                    cp_a(i,j,k) = cryo_props::cp_sam;
+                    // sample (water): cp(T) from the ET/IAPWS spline [J/(g·K)]
+                    // -> [J/(kg·K)] -> simulation units (clamped to 0-100 C)
+                    cp_a(i,j,k) = Real(cryo_props::cp_water(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
                 } else {
                     cp_a(i,j,k) = m_cp;
                 }
