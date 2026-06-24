@@ -196,6 +196,8 @@ void incflo::ReadParameters ()
             pp.query("cryo_temp_entry", m_cryo_temp_entry);
             pp.query("cryo_temp_eth", m_cryo_temp_eth);
             pp.query("cryo_disk_init_z", m_cryo_disk_init_z);
+            pp.query("cryo_temp_stats_file", m_temp_stats_file);
+            pp.query("cryo_temp_stats_int", m_temp_stats_int);
             // Additive wiper/obstacle primitives (see cryo.H CryoSolid)
             cryo_read_solids();
             cryo_read_samples();

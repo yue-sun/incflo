@@ -1,5 +1,9 @@
 #include <incflo.H>
 
+#include <fstream>
+#include <iomanip>
+#include <vector>
+
 using namespace amrex;
 
 void incflo::update_energy(StepType step_type, Vector<MultiFab> &scratch)
@@ -164,6 +168,154 @@ Real incflo::compute_thermal_energy()
 
     ParallelDescriptor::ReduceRealSum(energy);
     return energy;
+}
+
+// Per-cell_type temperature stats (volume-weighted avg, min, max) over the AMR
+// hierarchy (fine-covered cells masked out), one row per cell_type per step
+// appended to a text file Python can read. The tracked types are fixed:
+// material codes -1..-7 plus sample labels 1..m_cryo_n_samples. Types absent
+// from the domain (e.g. a sample disk that hasn't plunged in yet) are reported
+// at the entry temperature m_cryo_temp_entry.
+void incflo::write_temperature_stats()
+{
+    BL_PROFILE("incflo::write_temperature_stats");
+
+    if (!m_use_temperature)
+    {
+        return;
+    }
+#ifdef INCFLO_SIM_CRYO
+    if (!m_sim_cryo)
+    {
+        return;
+    }
+#else
+    return;
+#endif
+
+    constexpr int N_MAT = 7;                  // material codes -1..-7
+    const int nsamp = m_cryo_n_samples;       // sample labels 1..nsamp
+    const int ntypes = N_MAT + nsamp;
+    constexpr Real BIG = Real(1.0e30);
+    // dense index: code c<0 -> -c-1 (0..6); sample label c>=1 -> N_MAT+(c-1)
+
+    Gpu::DeviceVector<Real> d_sumTvol(ntypes), d_sumvol(ntypes),
+        d_ncell(ntypes), d_tmin(ntypes), d_tmax(ntypes);
+    Real *p_sumTvol = d_sumTvol.dataPtr();
+    Real *p_sumvol = d_sumvol.dataPtr();
+    Real *p_ncell = d_ncell.dataPtr();
+    Real *p_tmin = d_tmin.dataPtr();
+    Real *p_tmax = d_tmax.dataPtr();
+    amrex::ParallelFor(ntypes, [=] AMREX_GPU_DEVICE(int n) noexcept
+                       {
+        p_sumTvol[n] = Real(0.0); p_sumvol[n] = Real(0.0);
+        p_ncell[n]   = Real(0.0); p_tmin[n]   = BIG; p_tmax[n] = -BIG; });
+
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto &ld = *m_leveldata[lev];
+
+        iMultiFab level_mask;
+        if (lev < finest_level)
+        {
+            level_mask = makeFineMask(grids[lev], dmap[lev], grids[lev + 1],
+                                      refRatio(lev), 1, 0);
+        }
+        else
+        {
+            level_mask.define(grids[lev], dmap[lev], 1, 0);
+            level_mask.setVal(1);
+        }
+
+        auto const &dx = geom[lev].CellSizeArray();
+        Real const cell_vol = AMREX_D_TERM(dx[0], *dx[1], *dx[2]);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(ld.temperature, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box const &bx = mfi.tilebox();
+            Array4<Real const> const &T = ld.temperature.const_array(mfi);
+            Array4<int const> const &ct = ld.cell_type.const_array(mfi);
+            Array4<int const> const &msk = level_mask.const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                        {
+                if (msk(i,j,k) == 0) return;          // covered by finer level
+                int c = ct(i,j,k), idx;
+                if (c < 0) {
+                    if (c < -N_MAT) return;            // unknown negative code
+                    idx = -c - 1;
+                } else if (c >= 1 && c <= nsamp) {
+                    idx = N_MAT + (c - 1);
+                } else {
+                    return;                            // c==0 / out of range
+                }
+                Real t = T(i,j,k);
+                Gpu::Atomic::Add(&p_sumTvol[idx], t * cell_vol);
+                Gpu::Atomic::Add(&p_sumvol [idx], cell_vol);
+                Gpu::Atomic::Add(&p_ncell  [idx], Real(1.0));
+                Gpu::Atomic::Min(&p_tmin   [idx], t);
+                Gpu::Atomic::Max(&p_tmax   [idx], t); });
+        }
+    }
+
+    std::vector<Real> sumTvol(ntypes), sumvol(ntypes), ncell(ntypes),
+        tmin(ntypes), tmax(ntypes);
+    Gpu::copy(Gpu::deviceToHost, d_sumTvol.begin(), d_sumTvol.end(), sumTvol.begin());
+    Gpu::copy(Gpu::deviceToHost, d_sumvol.begin(), d_sumvol.end(), sumvol.begin());
+    Gpu::copy(Gpu::deviceToHost, d_ncell.begin(), d_ncell.end(), ncell.begin());
+    Gpu::copy(Gpu::deviceToHost, d_tmin.begin(), d_tmin.end(), tmin.begin());
+    Gpu::copy(Gpu::deviceToHost, d_tmax.begin(), d_tmax.end(), tmax.begin());
+
+    ParallelDescriptor::ReduceRealSum(sumTvol.data(), ntypes);
+    ParallelDescriptor::ReduceRealSum(sumvol.data(), ntypes);
+    ParallelDescriptor::ReduceRealSum(ncell.data(), ntypes);
+    ParallelDescriptor::ReduceRealMin(tmin.data(), ntypes);
+    ParallelDescriptor::ReduceRealMax(tmax.data(), ntypes);
+
+    if (!ParallelDescriptor::IOProcessor())
+    {
+        return;
+    }
+
+    // Append across runs/restarts; write the header only when starting a
+    // fresh (nonexistent or empty) file.
+    bool need_header = true;
+    {
+        std::ifstream test(m_temp_stats_file);
+        if (test.good() && test.peek() != std::ifstream::traits_type::eof())
+        {
+            need_header = false;
+        }
+    }
+    std::ofstream ofs(m_temp_stats_file, std::ios::out | std::ios::app);
+    if (need_header)
+    {
+        ofs << "# step time cell_type n_cells avg_T min_T max_T\n";
+    }
+    ofs << std::setprecision(10);
+
+    for (int idx = 0; idx < ntypes; ++idx)
+    {
+        int code = (idx < N_MAT) ? -(idx + 1) : (idx - N_MAT + 1);
+        Real avg, mn, mx;
+        if (ncell[idx] > Real(0.5))
+        {
+            avg = sumTvol[idx] / sumvol[idx];
+            mn = tmin[idx];
+            mx = tmax[idx];
+        }
+        else
+        {
+            avg = mn = mx = m_cryo_temp_entry; // not yet in cryogen
+        }
+        ofs << m_nstep << ' ' << m_cur_time << ' ' << code << ' '
+            << static_cast<long long>(ncell[idx] + Real(0.5)) << ' '
+            << avg << ' ' << mn << ' ' << mx << '\n';
+    }
+    ofs.close();
 }
 
 void incflo::update_temperature(StepType step_type, Vector<MultiFab *> const &tem_eta, Vector<MultiFab> &scratch)

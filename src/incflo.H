@@ -356,6 +356,7 @@ public:
     void compute_cp (int lev, amrex::MultiFab& cp) const;
     void compute_rho_th (int lev, amrex::MultiFab& rho_th) const;
     amrex::Real compute_thermal_energy ();
+    void write_temperature_stats ();
     void get_temperature_property_smoothing (int& smooth_iters,
                                              amrex::Real& smooth_weight) const;
     void smooth_temperature_property_at_interfaces (int lev,
@@ -798,6 +799,10 @@ private:
     amrex::Real m_cryo_temp_entry = 0.;
     amrex::Real m_cryo_temp_eth = 0.;
     amrex::Real m_cryo_disk_init_z = -1.;  // initial disk center z offset; -1 = use default (disk radius)
+
+    // Per-cell_type temperature stats diagnostic (see write_temperature_stats)
+    std::string m_temp_stats_file = "temperature_stats.dat";
+    int m_temp_stats_int = 1;              // write every N steps (<=0 disables)
 #endif
 
     //

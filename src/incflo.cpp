@@ -198,6 +198,10 @@ void incflo::Evolve()
         {
             amrex::Print() << "Time, Thermal Energy: " << m_cur_time << ", "
                            << compute_thermal_energy() << std::endl;
+            if (m_temp_stats_int > 0 && (m_nstep % m_temp_stats_int == 0))
+            {
+                write_temperature_stats();
+            }
         }
 
         // Mechanism to terminate incflo normally.
