@@ -1,0 +1,4 @@
+# diameter length ox oy oz cx cy cz
+# Benchmark single fiber
+
+42e-6 600e-6 0. 1. 0. 300e-6 360e-6 120e-6
