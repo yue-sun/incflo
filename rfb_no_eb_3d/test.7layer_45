@@ -1,0 +1,106 @@
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            SIMULATION STOP            #
+#.......................................#
+stop_time               =   0.5         # Max (simulated) time to evolve
+max_step                =   -1          # Max number of time steps
+steady_state            =   1           # Steady-state solver?
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#         TIME STEP COMPUTATION         #
+#.......................................#
+incflo.fixed_dt         =   -1          # Use this constant dt if > 0
+incflo.cfl              =   0.5         # CFL factor
+incflo.steady_state_tol =   5.e-1       # Steady-state error tolerance
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            INPUT AND OUTPUT           #
+#.......................................#
+amr.plot_int            =   10000         # Steps between plot files
+amr.check_int           =   100000        # Steps between checkpoint files
+amr.restart             =   ""          # Checkpoint to restart from
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#               PHYSICS                 #
+#.......................................#
+incflo.gravity          =   0.  0.  0.  # Gravitational force (3D)
+incflo.ro_0             =   1000.0      # Reference density
+
+incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
+incflo.mu               =   0.001       # Dynamic viscosity coefficient
+
+incflo.constant_density =   true        #
+incflo.advect_momentum  =   true
+incflo.advect_tracer    =   true        # Should we update them?
+incflo.redistribution_type = FluxRedist	## NoRedist FluxRedist MergeRedist StateRedist
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           REDOX FLOW BATTERY          #
+#.......................................#
+# Geometry reconstructed from refexps/dmls_design/20250508_7layer_highres_45AAAA.step
+# 530 spherocylinder fibers, diam 203.2 um, 7-layer 45-deg-rotated woodpile.
+# NOTE: rfb_num_fibers is informational only -- the solver overrides it with the
+#       number of lines actually read from rfb_loc_file (see init.cpp).
+incflo.probtype          =   732
+incflo.sim_rfb           =   true
+incflo.rfb_num_fibers    =   530
+incflo.rfb_loc_file      =   "loc.7layer_45"
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#        ADAPTIVE MESH REFINEMENT       #
+#.......................................#
+# Full part: domain 85.51 x 43.04 x 1.658 mm (incl. 250 um fluid margin), fibers ~203 um.
+# Base grid 1072 x 536 x 40 -> dx ~ 80, 80, 41 um (~23.0M base cells).
+# max_level=1 (ref_ratio 2) refines near tagged solids to ~40, 40, 21 um
+#   => ~5 cells across a fiber diameter (the resolved target).
+# Raise max_level to 2 for ~20 um near fibers (finer, ~10 cells/diam) at higher cost.
+amr.n_cell              =   1072 536 40   # Grid cells at coarsest AMR level
+amr.max_level           =   1             # Max AMR level in hierarchy
+amr.ref_ratio           =   2 2 2         # refinement ratio
+amr.max_grid_size_x     =   32
+amr.max_grid_size_y     =   32
+amr.max_grid_size_z     =   32
+amr.blocking_factor_x   =   8     # block factor in x-direction
+amr.blocking_factor_y   =   8     # block factor in y-direction
+amr.blocking_factor_z   =   8     # block factor in z-direction
+
+incflo.tag_region       =   true
+incflo.tag_solids       =   true
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              GEOMETRY                 #
+#.......................................#
+geometry.prob_lo        =   0.0       0.0        0.0        # Lo corner coordinates
+geometry.prob_hi        =   8.550944e-02  4.304064e-02  1.658240e-03  # Hi corner (m)
+geometry.is_periodic    =   0       0       0       # Periodicity x y z (0/1)
+
+# Boundary conditions
+# incflo.delp             =   2.25  0.  0.  # Prescribed (cyclic) pressure gradient
+
+xlo.type                =   "pi"
+xlo.pressure            =   2.25
+xhi.type                =   "po"
+xhi.pressure            =   0.
+
+ylo.type                = "nsw"
+yhi.type                = "nsw"
+
+zlo.type                = "nsw"
+zhi.type                = "nsw"
+
+incflo.geometry = "all_regular"
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           INITIAL CONDITIONS          #
+#.......................................#
+#incflo.probtype         =   732
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              VERBOSITY                #
+#.......................................#
+amr.verbose              =      0
+incflo.verbose           =      1          # incflo itself
+mac_proj.verbose         =      0          # MAC Projector
+nodal_proj.verbose       =      0          # Nodal Projector
+scalar_diffusion.mg_verbose =   0
+
+amr.plotVariables        =   velx vely velz magvel vort density p cell_type
