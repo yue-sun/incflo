@@ -57,6 +57,10 @@ incflo.cryo_plunge_time =    0.0  6.0
 incflo.cryo_temp_entry  =   273.15
 incflo.cryo_temp_eth    =   90.0
 
+incflo.cryo_temp_stats_file = temperature_stats.dat   # default
+incflo.cryo_temp_stats_int  = 10                       # every 10 steps; default 1; <=0 disables
+
+
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        ADAPTIVE MESH REFINEMENT       #
 #.......................................#
