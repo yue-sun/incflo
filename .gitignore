@@ -61,3 +61,6 @@ cryo*/tmp_build_dir/
 cryo*/Backtrace.*
 cryo*/*plt*/
 cryo*/chk*/
+cryo*/*.py
+cryo*/*.pvsm
+cryo*/*.dat
