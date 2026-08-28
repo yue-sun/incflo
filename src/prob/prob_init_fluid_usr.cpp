@@ -17,6 +17,21 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
     amrex::Abort("init_cryo_plugning: not implemented in 2D");
 
 #elif (AMREX_SPACEDIM == 3)
+#ifdef INCFLO_SIM_CRYO
+    // Pack every per-cell input once, on the host: the plunging protocol and
+    // the thermocouple-motion spline are time-only, and a device lambda must
+    // not dereference `this`. cryo_stamp::DiskParams is POD, so the kernel
+    // below captures values only.
+    Real velz_plunge = Real(0.0), plunge_disp = Real(0.0);
+    cryo_plunge_state(m_cur_time, velz_plunge, plunge_disp);
+    cryo_stamp::DiskParams const disk =
+        cryo_disk_params(velz_plunge, plunge_disp, cryo_tc::evaluate_motion(m_cur_time));
+    Real const l_time = m_cur_time;
+    Real const temp_eth = m_cryo_temp_eth;
+    Real const temp_entry = m_cryo_temp_entry;
+    amrex::ignore_unused(temp_entry);
+#endif
+
     amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real x = (i+0.5)*dx[0] - 0.5*(probhi[0] - problo[0]);
@@ -37,18 +52,16 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
         // Update velocity and cell_type for each cell
         // based on the prescribed velocity of the plunging protocol
 #ifdef INCFLO_SIM_CRYO
-        cryo_set_geom_velocity(i, j, k, x, y, z,
-                            velx, vely, velz, cell_type_ijk,
-                            m_cur_time, dx, problo, probhi);
-        cryo_set_thermal(i, j, k, x, y, z, cell_type_ijk, m_cur_time, dx, problo, probhi);
+        cryo_stamp::set_geom_velocity(x, y, z, velx, vely, velz, cell_type_ijk, disk);
+        cryo_stamp::set_thermal(x, y, z, cell_type_ijk, l_time);
 
         // Set initial temperature
         if (cell_type_ijk == -1) {
             // -1: liquid ethane (fluid)
-            temperature_ijk = m_cryo_temp_eth;
+            temperature_ijk = temp_eth;
         } else {
             // All other cell types for solids
-            temperature_ijk = m_cryo_temp_entry;
+            temperature_ijk = temp_entry;
         }
 #endif
 

@@ -7,4 +7,6 @@ ifeq ($(SIM_CRYO),TRUE)
 	CEXE_headers += cryo_tc_experiment.H
 	CEXE_headers += cryo_properties.H
 	CEXE_headers += cryo_interp.H
+	CEXE_headers += cryo_grid.H
+	CEXE_headers += cryo_stamp.H
 endif

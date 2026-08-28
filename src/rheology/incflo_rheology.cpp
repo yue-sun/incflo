@@ -169,7 +169,7 @@ void incflo::compute_temperature_diff_coeff (Real /*time*/, Vector<MultiFab*> co
             Array4<int const> const& ct  = ct_mf.const_array(mfi);
             Array4<Real const> const& T_a = T_mf.const_array(mfi);
 
-            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (ct(i, j, k) == -2) { // thermocouple — temperature-dependent
                     // lambda [W/(m·K)] -> simulation units

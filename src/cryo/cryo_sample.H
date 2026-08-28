@@ -32,14 +32,22 @@ int m_cryo_n_samples = 0;
 amrex::Vector<VoxelShape> m_cryo_shapes;
 amrex::Vector<CryoCell>   m_cryo_cells;
 
+// Device mirrors of the two records above, in the flat POD form the per-cell
+// stamper (cryo_stamp::apply_samples) consumes: one CellView per placement, one
+// VoxelView per distinct shape, and a single buffer holding every shape's
+// occupancy mask back to back. Built once by cryo_read_samples.
+amrex::Gpu::DeviceVector<cryo_stamp::CellView>  m_cryo_cells_d;
+amrex::Gpu::DeviceVector<cryo_stamp::VoxelView> m_cryo_shapes_d;
+amrex::Gpu::DeviceVector<char>                  m_cryo_occ_d;
+
 void cryo_read_samples ();
+void cryo_upload_samples ();
 bool cryo_sample_grid (int geometry, amrex::Real plunge_disp,
                        amrex::Real& face_y, amrex::Real& radius,
                        amrex::Real& zoff) const;
-void cryo_apply_samples (amrex::Real x, amrex::Real y, amrex::Real z,
-                         amrex::Real& velx, amrex::Real& vely, amrex::Real& velz,
-                         int& cell_type_ijk, amrex::Real velz_plunge,
-                         amrex::Real face_y, amrex::Real radius,
-                         amrex::Real zoff) const;
+// Device-array pointers + host disk geometry, packed once per cryo_update.
+// host_valid is false when this geometry hosts no samples (nothing to stamp).
+cryo_stamp::SampleData cryo_sample_data (int geometry,
+                                         amrex::Real plunge_disp) const;
 
 #endif

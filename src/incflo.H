@@ -24,6 +24,7 @@
 #ifdef INCFLO_SIM_CRYO
 #include "cryo_properties.H"
 #include "cryo_tc_experiment.H"
+#include "cryo_stamp.H"     // POD types + device-callable per-cell stampers
 #endif
 
 enum struct StepType {

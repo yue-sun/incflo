@@ -1,6 +1,7 @@
 #include <incflo.H>
 #include <cryo_grid.H>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -96,6 +97,83 @@ void incflo::cryo_read_samples ()
     m_cryo_n_samples = static_cast<int>(m_cryo_cells.size());
     amrex::Print() << "cryo_read_samples: " << m_cryo_n_samples << " samples, "
                    << m_cryo_shapes.size() << " distinct shapes from " << placement << "\n";
+
+    cryo_upload_samples();
+}
+
+// Flatten the host records into the POD form the per-cell stamper reads, and
+// mirror them to device memory. Done once: the placement is fixed for the run.
+// The occupancy masks of all shapes are concatenated into one buffer so a shape
+// is just (dims, offset) -- no per-shape pointer to chase or upload.
+void incflo::cryo_upload_samples ()
+{
+    int const nshapes = static_cast<int>(m_cryo_shapes.size());
+
+    Vector<cryo_stamp::VoxelView> shapes_h(nshapes);
+    Long occ_total = 0;
+    for (int sidx = 0; sidx < nshapes; ++sidx)
+    {
+        VoxelShape const& vs = m_cryo_shapes[sidx];
+        cryo_stamp::VoxelView& v = shapes_h[sidx];
+        v.nx = vs.nx; v.ny = vs.ny; v.nz = vs.nz;
+        v.voxel_size_mm = vs.voxel_size_mm;
+        v.occ_offset = occ_total;
+        occ_total += static_cast<Long>(vs.occ.size());
+    }
+
+    Vector<char> occ_h(occ_total);
+    for (int sidx = 0; sidx < nshapes; ++sidx)
+    {
+        VoxelShape const& vs = m_cryo_shapes[sidx];
+        std::copy(vs.occ.begin(), vs.occ.end(), occ_h.begin() + shapes_h[sidx].occ_offset);
+    }
+
+    Vector<cryo_stamp::CellView> cells_h(m_cryo_n_samples);
+    for (int n = 0; n < m_cryo_n_samples; ++n)
+    {
+        CryoCell const& c = m_cryo_cells[n];
+        cryo_stamp::CellView& cv = cells_h[n];
+        cv.shape_idx = c.shape_idx;
+        cv.cx = c.cx;
+        cv.cz = c.cz;
+        // The stamp un-rotates by -angle; cache that rotation here rather than
+        // recomputing cos/sin for every cell of every sample.
+        cv.cos_neg_angle = std::cos(-c.angle);
+        cv.sin_neg_angle = std::sin(-c.angle);
+        cv.flip = c.flip ? 1 : 0;
+        cv.scale = c.scale;
+        cv.label = c.label;
+    }
+
+    auto upload = [] (auto const& host, auto& device) {
+        device.resize(host.size());
+        if (!host.empty()) {
+            Gpu::copyAsync(Gpu::hostToDevice, host.begin(), host.end(), device.begin());
+        }
+    };
+    upload(shapes_h, m_cryo_shapes_d);
+    upload(occ_h,    m_cryo_occ_d);
+    upload(cells_h,  m_cryo_cells_d);
+    Gpu::streamSynchronize();
+}
+
+cryo_stamp::SampleData incflo::cryo_sample_data (int geometry, Real plunge_disp) const
+{
+    cryo_stamp::SampleData sd;
+    if (m_cryo_n_samples <= 0) { return sd; }   // host_valid stays false
+
+    Real face_y, radius, zoff;
+    if (!cryo_sample_grid(geometry, plunge_disp, face_y, radius, zoff)) { return sd; }
+
+    sd.cells  = m_cryo_cells_d.dataPtr();
+    sd.shapes = m_cryo_shapes_d.dataPtr();
+    sd.occ    = m_cryo_occ_d.dataPtr();
+    sd.n_cells = m_cryo_n_samples;
+    sd.host_valid = true;
+    sd.face_y = face_y;
+    sd.radius = radius;
+    sd.zoff   = zoff;
+    return sd;
 }
 
 bool incflo::cryo_sample_grid (int geometry, Real plunge_disp,
@@ -103,58 +181,15 @@ bool incflo::cryo_sample_grid (int geometry, Real plunge_disp,
 {
     // Discrete samples sit on the +y face of any disk-family host (gold EM
     // grid / sapphire / diamond). The geometry table is the single source of
-    // truth for radius and face height; see cryo_geometries.H.
-    cryo_grid::GridGeom const *grid = cryo_grid::read_grid_geom(geometry);
-    if (!grid) { return false; }
+    // truth for radius and face height; see cryo_grid.H.
+    cryo_grid::GridGeom grid;
+    if (!cryo_grid::read_grid_geom(geometry, grid)) { return false; }
 
-    Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid->radius;
-    face_y = grid->half_thick;
-    radius = grid->radius;
+    Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid.radius;
+    face_y = grid.half_thick;
+    radius = grid.radius;
     zoff   = init_z + plunge_disp;
     return true;
-}
-
-void incflo::cryo_apply_samples (Real x, Real y, Real z,
-                                 Real& velx, Real& vely, Real& velz,
-                                 int& cell_type_ijk, Real velz_plunge,
-                                 Real face_y, Real radius, Real zoff) const
-{
-    // Off the disk footprint: nothing to host.
-    Real const rz = z - zoff;
-    if (x * x + rz * rz > radius * radius) { return; }
-    Real const ly = y - face_y;
-    if (ly < Real(0.0)) { return; }
-
-    for (int n = 0; n < m_cryo_n_samples; ++n)
-    {
-        CryoCell const& c = m_cryo_cells[n];
-        VoxelShape const& s = m_cryo_shapes[c.shape_idx];
-        Real const v = c.scale * s.voxel_size_mm;
-        if (ly > Real(s.ny) * v) { continue; }      // above this cell's height
-
-        // local in-plane coords relative to the cell center
-        Real lx = x - c.cx;
-        Real lz = rz - c.cz;
-        // un-rotate by -angle about +y
-        Real const ca = std::cos(-c.angle), sa = std::sin(-c.angle);
-        Real lxr = ca * lx - sa * lz;
-        Real const lzr = sa * lx + ca * lz;
-        if (c.flip) { lxr = -lxr; }
-
-        // to voxel indices (centered in i,k; j from the face)
-        int const vi = static_cast<int>(std::floor(lxr / v + Real(0.5) * s.nx));
-        int const vj = static_cast<int>(std::floor(ly  / v));
-        int const vk = static_cast<int>(std::floor(lzr / v + Real(0.5) * s.nz));
-
-        if (s.occupied(vi, vj, vk))
-        {
-            cell_type_ijk = c.label;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = velz_plunge;      // rigid, co-moves with the disk
-            return;                  // first match (placement order) wins
-        }
-    }
 }
 
 #endif

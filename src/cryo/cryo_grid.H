@@ -14,6 +14,10 @@
 // The disk-geometry table below the >>> hand-maintained geometry >>> marker is
 // NOT generated here; it is preserved verbatim across regenerations.
 //
+// The spline knot/coefficient tables are function-local constexpr arrays
+// inside each accessor, NOT namespace-scope variables: a __device__ function
+// may not take the address of a host constexpr array (see cryo_interp.H).
+//
 //   cp_*  : specific heat        [J / (g K)]   (multiply by 1000 for J/(kg K))
 //   k_*   : thermal conductivity [W / (m K)]
 //
@@ -32,56 +36,36 @@
 
 namespace cryo_grid
 {
-    namespace grid_properties
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        amrex::Real cp_gold(amrex::Real T_K) noexcept  // J/(g K)
     {
         // gold cp  [J/(g K)]
-        static constexpr double cp_gold_knots[21] = {
+        constexpr double knots[21] = {
             90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0};
-        static constexpr double cp_gold_c[4][20] = {
+        constexpr double c[4][20] = {
             {-1.06159309e-08, -1.06159309e-08, +7.42966932e-08, +9.53358519e-08, -5.25163687e-08, -1.25726085e-08, +1.79386485e-08, +4.46913011e-09, +6.61890814e-09, +1.14893144e-08, -1.01420887e-08, -1.33550366e-08, +4.23451966e-08, +1.37105585e-08, -3.35363151e-08, +1.43495093e-08, -2.64468341e-09, -3.77077564e-09, -3.48925258e-09, -3.48925258e-09},
             {-4.03101497e-06, -4.34949290e-06, -4.66797083e-06, -2.43907003e-06, +4.21005525e-07, -1.15448554e-06, -1.53166379e-06, -9.93504335e-07, -8.59430432e-07, -6.60863188e-07, -3.16183755e-07, -6.20446417e-07, -1.02109751e-06, +2.49258383e-07, +6.60575139e-07, -3.45514315e-07, +8.49709634e-08, +5.63046115e-09, -1.07492808e-07, -2.12170385e-07},
             {+4.42373771e-04, +3.58568692e-04, +2.68394055e-04, +1.97323647e-04, +1.77143001e-04, +1.69808201e-04, +1.42946708e-04, +1.17695027e-04, +9.91656792e-05, +8.39627430e-05, +7.41922736e-05, +6.48259719e-05, +4.84105326e-05, +4.06921412e-05, +4.97904765e-05, +5.29410847e-05, +5.03356512e-05, +5.12416654e-05, +5.02230420e-05, +4.70264100e-05},
             {+1.04536349e-01, +1.08546369e-01, +1.11686491e-01, +1.13977931e-01, +1.15802596e-01, +1.17563611e-01, +1.19133671e-01, +1.20427911e-01, +1.21509980e-01, +1.22422312e-01, +1.23207343e-01, +1.23907505e-01, +1.24480365e-01, +1.24904706e-01, +1.25350264e-01, +1.25880690e-01, +1.26389899e-01, +1.26899108e-01, +1.27408316e-01, +1.27896308e-01},
         };
+        return cryo_interp::eval_piecewise_cubic(T_K, knots, c);
+    }
 
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        amrex::Real k_gold(amrex::Real T_K) noexcept  // W/(m K)
+    {
         // gold k  [W/(m K)]
-        static constexpr double k_gold_knots[6] = {
+        constexpr double knots[6] = {
             90.0, 100.0, 150.0, 200.0, 250.0, 290.0};
-        static constexpr double k_gold_c[4][5] = {
+        constexpr double c[4][5] = {
             {-1.30213425e-05, -1.30213425e-05, +4.27256435e-06, -4.06891496e-06, -4.06891496e-06},
             {+1.91149397e-03, +1.52085370e-03, -4.32347670e-04, +2.08536983e-04, -4.01800261e-04},
             {-1.17812805e-01, -8.34893288e-02, -2.90640274e-02, -4.02545617e-02, -4.99177256e-02},
             {+3.28000000e+02, +3.27000000e+02, +3.25000000e+02, +3.23000000e+02, +3.21000000e+02},
         };
-
-        // diamond cp  [J/(g K)]
-        static constexpr double cp_dia_knots[21] = {
-            90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0};
-        static constexpr double cp_dia_c[4][20] = {
-            {+1.01421277e-07, +1.01421277e-07, -8.90895665e-08, -5.85756242e-08, +1.84053124e-07, -8.54463795e-08, -3.99623363e-07, +5.34393583e-07, -3.44561577e-07, +1.81992761e-07, -3.50621210e-08, -4.17442774e-08, -2.50812322e-07, +3.47862565e-08, +3.20675705e-07, -6.34386243e-08, -4.84938026e-07, +2.96288723e-07, -1.42861108e-07, -1.42861108e-07},
-            {+7.05943479e-06, +1.01020731e-05, +1.31447114e-05, +1.04720244e-05, +8.71475569e-06, +1.42363494e-05, +1.16729580e-05, -3.15742879e-07, +1.57160646e-05, +5.37921732e-06, +1.08390002e-05, +9.78713653e-06, +8.53480821e-06, +1.01043854e-06, +2.05402624e-06, +1.16742974e-05, +9.77113867e-06, -4.77700212e-06, +4.11165957e-06, -1.74173674e-07},
-            {+5.18420963e-04, +6.90036042e-04, +9.22503887e-04, +1.15867125e-03, +1.35053905e-03, +1.58005010e-03, +1.83914317e-03, +1.95271532e-03, +2.10671854e-03, +2.31767136e-03, +2.47985353e-03, +2.68611490e-03, +2.86933435e-03, +2.96478682e-03, +2.99543146e-03, +3.13271470e-03, +3.34716906e-03, +3.39711043e-03, +3.39045700e-03, +3.42983186e-03},
-            {+1.45609192e-02, +2.05524935e-02, +2.85644826e-02, +3.90149030e-02, +5.15902423e-02, +6.61511614e-02, +8.32898510e-02, +1.02448955e-01, +1.22478928e-01, +1.44773158e-01, +1.68669786e-01, +1.94517159e-01, +2.22315278e-01, +2.51611290e-01, +2.81394988e-01, +3.11875381e-01, +3.44306519e-01, +3.78270385e-01, +4.12060078e-01, +4.46232953e-01},
-        };
-
-        // diamond k  [W/(m K)]
-        static constexpr double k_dia_knots[10] = {
-            90.0, 100.0, 125.0, 150.0, 175.0, 200.0, 225.0, 250.0, 275.0, 290.0};
-        static constexpr double k_dia_c[4][9] = {
-            {-2.03810283e-04, -2.03810283e-04, -1.05409235e-03, +2.11617969e-03, +1.16537359e-03, +3.58325942e-04, +8.25322640e-04, -4.27616502e-04, -4.27616502e-04},
-            {-1.91971394e-01, -1.98085703e-01, -2.13371474e-01, -2.92428401e-01, -1.33714924e-01, -4.63119044e-02, -1.94374587e-02, +4.24617393e-02, +1.03905017e-02},
-            {+3.51400950e+01, +3.12395240e+01, +2.09530946e+01, +8.30809771e+00, -2.34548540e+00, -6.84615610e+00, -8.48989018e+00, -7.91428317e+00, -6.59297715e+00},
-            {+1.28000000e+03, +1.61200000e+03, +2.26600000e+03, +2.64000000e+03, +2.69800000e+03, +2.57400000e+03, +2.37950000e+03, +2.16800000e+03, +1.99000000e+03},
-        };
-    } // namespace grid_properties
-
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        amrex::Real cp_gold(amrex::Real T_K) noexcept  // J/(g K)
-    { return cryo_interp::eval_piecewise_cubic(T_K, grid_properties::cp_gold_knots, grid_properties::cp_gold_c); }
-
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        amrex::Real k_gold(amrex::Real T_K) noexcept  // W/(m K)
-    { return cryo_interp::eval_piecewise_cubic(T_K, grid_properties::k_gold_knots, grid_properties::k_gold_c); }
+        return cryo_interp::eval_piecewise_cubic(T_K, knots, c);
+    }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         amrex::Real cp_sap(amrex::Real T_K) noexcept  // J/(g K)  [analytic: Ditmars 1982/Chang fit]
@@ -93,11 +77,33 @@ namespace cryo_grid
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         amrex::Real cp_dia(amrex::Real T_K) noexcept  // J/(g K)
-    { return cryo_interp::eval_piecewise_cubic(T_K, grid_properties::cp_dia_knots, grid_properties::cp_dia_c); }
+    {
+        // diamond cp  [J/(g K)]
+        constexpr double knots[21] = {
+            90.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0, 190.0, 200.0, 210.0, 220.0, 230.0, 240.0, 250.0, 260.0, 270.0, 280.0, 290.0};
+        constexpr double c[4][20] = {
+            {+1.01421277e-07, +1.01421277e-07, -8.90895665e-08, -5.85756242e-08, +1.84053124e-07, -8.54463795e-08, -3.99623363e-07, +5.34393583e-07, -3.44561577e-07, +1.81992761e-07, -3.50621210e-08, -4.17442774e-08, -2.50812322e-07, +3.47862565e-08, +3.20675705e-07, -6.34386243e-08, -4.84938026e-07, +2.96288723e-07, -1.42861108e-07, -1.42861108e-07},
+            {+7.05943479e-06, +1.01020731e-05, +1.31447114e-05, +1.04720244e-05, +8.71475569e-06, +1.42363494e-05, +1.16729580e-05, -3.15742879e-07, +1.57160646e-05, +5.37921732e-06, +1.08390002e-05, +9.78713653e-06, +8.53480821e-06, +1.01043854e-06, +2.05402624e-06, +1.16742974e-05, +9.77113867e-06, -4.77700212e-06, +4.11165957e-06, -1.74173674e-07},
+            {+5.18420963e-04, +6.90036042e-04, +9.22503887e-04, +1.15867125e-03, +1.35053905e-03, +1.58005010e-03, +1.83914317e-03, +1.95271532e-03, +2.10671854e-03, +2.31767136e-03, +2.47985353e-03, +2.68611490e-03, +2.86933435e-03, +2.96478682e-03, +2.99543146e-03, +3.13271470e-03, +3.34716906e-03, +3.39711043e-03, +3.39045700e-03, +3.42983186e-03},
+            {+1.45609192e-02, +2.05524935e-02, +2.85644826e-02, +3.90149030e-02, +5.15902423e-02, +6.61511614e-02, +8.32898510e-02, +1.02448955e-01, +1.22478928e-01, +1.44773158e-01, +1.68669786e-01, +1.94517159e-01, +2.22315278e-01, +2.51611290e-01, +2.81394988e-01, +3.11875381e-01, +3.44306519e-01, +3.78270385e-01, +4.12060078e-01, +4.46232953e-01},
+        };
+        return cryo_interp::eval_piecewise_cubic(T_K, knots, c);
+    }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         amrex::Real k_dia(amrex::Real T_K) noexcept  // W/(m K)
-    { return cryo_interp::eval_piecewise_cubic(T_K, grid_properties::k_dia_knots, grid_properties::k_dia_c); }
+    {
+        // diamond k  [W/(m K)]
+        constexpr double knots[10] = {
+            90.0, 100.0, 125.0, 150.0, 175.0, 200.0, 225.0, 250.0, 275.0, 290.0};
+        constexpr double c[4][9] = {
+            {-2.03810283e-04, -2.03810283e-04, -1.05409235e-03, +2.11617969e-03, +1.16537359e-03, +3.58325942e-04, +8.25322640e-04, -4.27616502e-04, -4.27616502e-04},
+            {-1.91971394e-01, -1.98085703e-01, -2.13371474e-01, -2.92428401e-01, -1.33714924e-01, -4.63119044e-02, -1.94374587e-02, +4.24617393e-02, +1.03905017e-02},
+            {+3.51400950e+01, +3.12395240e+01, +2.09530946e+01, +8.30809771e+00, -2.34548540e+00, -6.84615610e+00, -8.48989018e+00, -7.91428317e+00, -6.59297715e+00},
+            {+1.28000000e+03, +1.61200000e+03, +2.26600000e+03, +2.64000000e+03, +2.69800000e+03, +2.57400000e+03, +2.37950000e+03, +2.16800000e+03, +1.99000000e+03},
+        };
+        return cryo_interp::eval_piecewise_cubic(T_K, knots, c);
+    }
 
     // >>> BEGIN hand-maintained geometry (preserved by theory/grid_properties.ipynb) >>>
     // =======================================================================
@@ -108,9 +114,10 @@ namespace cryo_grid
     // cryo_sample.cpp). Spheres (debug, thermocouple) are NOT disks and stay
     // inline in cryo_set_geom_velocity.
     //
-    // NOTE: host-only today. The cryo cell loop runs on CPU/OMP, so the
-    // namespace-scope table and the pointer returned by read_grid_geom() are
-    // fine. A future GPU port would return a GridGeom by value/index instead.
+    // Device-safe: the table is a function-local constexpr inside
+    // read_grid_geom() and the spec is returned BY VALUE. A namespace-scope
+    // constexpr table would need its address taken in device code (returning
+    // a pointer into it), which CUDA forbids.
     // =======================================================================
 
     struct GridGeom
@@ -125,23 +132,24 @@ namespace cryo_grid
         amrex::Real bar_half;       // mesh: bar half-width [mm]
     };
 
-    // Geometry for the disk family. All lengths in mm.
-    static constexpr GridGeom grids[] = {
-        // id    R       w       mat   mesh    rim     pitch   bar
-        {  3, 1.525,  0.0125,  -3,   true,   1.285,  0.06,   0.0125 },  // gold EM grid: 3.05mm dia, 240um rim, 60um pitch
-        {  4, 1.5,    0.08,    -4,   false,  0.0,    0.0,    0.0    },  // sapphire (160um)
-        {  5, 1.5,    0.05,    -5,   false,  0.0,    0.0,    0.0    },  // diamond (100um)
-    };
-    static constexpr int n_grids = sizeof(grids) / sizeof(grids[0]);
-
-    // Geometry spec for this geometry id, or nullptr if it is not a disk.
+    // Geometry spec for this geometry id, copied into `grid`. Returns false
+    // (leaving `grid` untouched) if the id is not a disk.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    GridGeom const* read_grid_geom (int geom_id) noexcept
+    bool read_grid_geom (int geom_id, GridGeom& grid) noexcept
     {
+        // Geometry for the disk family. All lengths in mm.
+        constexpr GridGeom grids[] = {
+            // id    R       w       mat   mesh    rim     pitch   bar
+            {  3, 1.525,  0.0125,  -3,   true,   1.285,  0.06,   0.0125 },  // gold EM grid: 3.05mm dia, 240um rim, 60um pitch
+            {  4, 1.5,    0.08,    -4,   false,  0.0,    0.0,    0.0    },  // sapphire (160um)
+            {  5, 1.5,    0.05,    -5,   false,  0.0,    0.0,    0.0    },  // diamond (100um)
+        };
+        constexpr int n_grids = sizeof(grids) / sizeof(grids[0]);
+
         for (int n = 0; n < n_grids; ++n) {
-            if (grids[n].geom_id == geom_id) { return &grids[n]; }
+            if (grids[n].geom_id == geom_id) { grid = grids[n]; return true; }
         }
-        return nullptr;
+        return false;
     }
 
     // Stamp one cell of the disk substrate (and its optional +y-face sample

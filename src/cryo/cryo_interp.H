@@ -10,9 +10,22 @@ namespace cryo_interp
 {
 
     // -----------------------------------------------------------------------
-    // Piecewise cubic evaluator  f(x) = c3·dx³ + c2·dx² + c1·dx + c0
+    // Piecewise cubic evaluator
+    //     f(x) = c[0]·dx³ + c[1]·dx² + c[2]·dx + c[3]
     // where dx = x - left knot of the containing segment.
-    // Layout: xs[N+1] knots,  c[4][N] coefficients  (row = order, col = segment).
+    //
+    // Layout: xs[N+1] knots, c[4][N] coefficients (col = segment; row 0 is the
+    // CUBIC coefficient and row 3 the constant term, i.e. scipy
+    // CubicSpline/PPoly `.c` ordering, highest order first). The generators in
+    // theory/*.ipynb emit the rows in that order -- reversing them produces a
+    // smooth, plausible, and completely wrong property with no crash to reveal
+    // it.
+    //
+    // The knot/coefficient tables are function-local `constexpr` arrays in each
+    // accessor (cryo_properties.H, cryo_grid.H) rather than namespace-scope
+    // variables, so that passing them here by reference stays legal in device
+    // code: CUDA forbids taking the address of a host constexpr non-scalar in
+    // a __device__ function.
     //
     // Single definition shared by the thermocouple motion data and the
     // temperature-dependent material properties.

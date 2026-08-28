@@ -30,7 +30,10 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
         if (m_sim_cryo) {
             auto const& ct  = ld.cell_type.const_array(mfi);
             auto const& T_a = ld.temperature.const_array(mfi);
-            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            // Copy the scalar member to a local: a device lambda may capture
+            // `this` but must not dereference it (host pointer on the device).
+            Real const l_cp_cryo = m_cp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (ct(i,j,k) == -2) {
                     // cp from spline [J/(g·K)] -> [J/(kg·K)] -> simulation units
@@ -58,7 +61,7 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
                     // -> [J/(kg·K)] -> simulation units (clamped to 0-100 C)
                     cp_a(i,j,k) = Real(cryo_props::cp_water(T_a(i,j,k))) * Real(1000.0) * cryo_props::conv_cp;
                 } else {
-                    cp_a(i,j,k) = m_cp;
+                    cp_a(i,j,k) = l_cp_cryo;
                 }
             });
         } else {
@@ -70,7 +73,7 @@ void incflo::compute_cp (int lev, MultiFab& cp) const
         }
 #else
         Real l_cp = m_cp;
-        ParallelFor(bx, [=, this] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cp_a(i,j,k) = l_cp;
         });

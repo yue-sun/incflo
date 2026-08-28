@@ -25,8 +25,21 @@ void incflo::cryo_update(Real time)
 
 #elif (AMREX_SPACEDIM == 3)
 
+    // Time-only kinematics and scalar inputs, evaluated ONCE here instead of
+    // per cell: cryo_plunge_state walks the prescribed-protocol Vectors and
+    // cryo_tc::evaluate_motion is two 21-segment spline searches, and both
+    // depend on `time` alone. Everything the per-cell path needs is then POD
+    // (cryo_stamp::DiskParams / SampleData + a device pointer for the solids),
+    // so the kernel below never dereferences `this`.
     Real velz_plunge, plunge_disp;
     cryo_plunge_state(time, velz_plunge, plunge_disp);
+    cryo_tc::ThermocoupleMotion const tc_motion = cryo_tc::evaluate_motion(time);
+
+    cryo_stamp::DiskParams const disk = cryo_disk_params(velz_plunge, plunge_disp, tc_motion);
+    cryo_stamp::SampleData const samples = cryo_sample_data(m_cryo_geometry, plunge_disp);
+    cryo_stamp::Solid const* solids_p = m_cryo_solids_d.dataPtr();
+    int const n_solids = m_cryo_n_solids;
+    Real const temp_entry = m_cryo_temp_entry;
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -36,13 +49,6 @@ void incflo::cryo_update(Real time)
         auto const &problo = geom[lev].ProbLoArray();
         auto const &probhi = geom[lev].ProbHiArray();
 
-        // Sample grid surface (constant across cells/levels for this geometry).
-        Real sample_face_y = Real(0.0), sample_radius = Real(0.0), sample_zoff = Real(0.0);
-        bool const sample_grid_ok =
-            (m_cryo_n_samples > 0) &&
-            cryo_sample_grid(m_cryo_geometry, plunge_disp,
-                             sample_face_y, sample_radius, sample_zoff);
-
         for (MFIter mfi(ld.density, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box const &bx = mfi.tilebox();
@@ -50,7 +56,7 @@ void incflo::cryo_update(Real time)
             Array4<int> const &cell_type = ld.cell_type.array(mfi);
             Array4<Real> const &temperature = ld.temperature.array(mfi);
 
-            ParallelFor(bx, [=, this] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
                             Real x = (i + 0.5) * dx[0] - 0.5 * (probhi[0] - problo[0]);
                             Real y = (j + 0.5) * dx[1] - 0.5 * (probhi[1] - problo[1]);
@@ -63,33 +69,29 @@ void incflo::cryo_update(Real time)
                             Real &temperature_ijk = temperature(i, j, k);
 
                             // Set geometry and velocity
-                            cryo_set_geom_velocity(i, j, k, x, y, z,
-                                                   velx, vely, velz,
-                                                   cell_type_ijk,
-                                               time, dx, problo, probhi);
+                            cryo_stamp::set_geom_velocity(x, y, z, velx, vely, velz,
+                                                          cell_type_ijk, disk);
                             // Additive wiper/obstacle primitives
-                            if (m_cryo_n_solids > 0)
+                            if (n_solids > 0)
                             {
-                                cryo_apply_solids(x, y, z,
-                                                  velx, vely, velz,
-                                                  cell_type_ijk,
-                                                  time, velz_plunge, plunge_disp);
+                                cryo_stamp::apply_solids(x, y, z, velx, vely, velz,
+                                                         cell_type_ijk, solids_p, n_solids,
+                                                         time, disk.velz_plunge,
+                                                         disk.plunge_disp);
                             }
                             // Discrete biological samples on the disk face
-                            if (sample_grid_ok)
+                            if (samples.host_valid)
                             {
-                                cryo_apply_samples(x, y, z,
-                                                   velx, vely, velz,
-                                                   cell_type_ijk, velz_plunge,
-                                                   sample_face_y, sample_radius,
-                                                   sample_zoff);
+                                cryo_stamp::apply_samples(x, y, z, velx, vely, velz,
+                                                          cell_type_ijk, disk.velz_plunge,
+                                                          samples);
                             }
-                            // Set thermal properties and top temperature B.C.
-                            cryo_set_thermal(i, j, k, x, y, z,
-                                             cell_type_ijk,
-                                           time, dx, problo, probhi);
-                            // Set top boundary condition for temperature/heat
-                            cryo_set_temp_top_bc(z, temperature_ijk, cell_type_ijk, dx, probhi); });
+                            // Set thermal properties (no-op hook) and the top
+                            // temperature B.C.
+                            cryo_stamp::set_thermal(x, y, z, cell_type_ijk, time);
+                            cryo_stamp::set_temp_top_bc(z, temperature_ijk, cell_type_ijk,
+                                                        dx, probhi, temp_entry);
+                        });
         }
     }
 #endif
@@ -135,6 +137,30 @@ void incflo::cryo_plunge_state(Real time, Real &velz_plunge, Real &plunge_disp) 
             }
         }
     }
+}
+
+// Resolve the geometry preset once per update: the disk-table row (if this
+// geometry is a disk), its centre z for this time, and the time-only kinematics.
+// The result is POD and is what the device stamper reads instead of members.
+cryo_stamp::DiskParams incflo::cryo_disk_params (Real velz_plunge, Real plunge_disp,
+                                                cryo_tc::ThermocoupleMotion const &motion) const
+{
+    cryo_stamp::DiskParams p;
+    p.geometry = m_cryo_geometry;
+    p.sample_layer = m_cryo_sample_layer ? 1 : 0;
+    p.sample_layer_thickness = m_cryo_sample_layer_thickness;
+    p.velz_plunge = velz_plunge;
+    p.plunge_disp = plunge_disp;
+    p.motion = motion;
+
+    p.is_disk = cryo_grid::read_grid_geom(m_cryo_geometry, p.grid);
+    if (p.is_disk)
+    {
+        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z
+                                                             : p.grid.radius;
+        p.zoff = init_z + plunge_disp;
+    }
+    return p;
 }
 
 void incflo::cryo_read_solids()
@@ -184,6 +210,10 @@ void incflo::cryo_read_solids()
         Real angle_deg = Real(0.0);
         pp.query((pre + "angle").c_str(), angle_deg);
         s.angle = angle_deg * Real(M_PI / 180.0);
+        // Cache the rotation: `angle` is a parse-time constant, so computing
+        // cos/sin per cell (as the stamper used to) is pure waste.
+        s.cos_angle = std::cos(s.angle);
+        s.sin_angle = std::sin(s.angle);
 
         pp.query((pre + "osc_axis").c_str(), s.osc_axis);
         pp.query((pre + "osc_amp").c_str(), s.osc_amp);
@@ -236,309 +266,17 @@ void incflo::cryo_read_solids()
                                "rim_base_hy > 0, rim_tooth_h > 0, rim_nteeth > 0");
         }
     }
-}
 
-void incflo::cryo_apply_solids(Real x, Real y, Real z,
-                               Real &velx, Real &vely, Real &velz,
-                               int &cell_type_ijk,
-                               Real time,
-                               Real velz_plunge, Real plunge_disp) const
-{
-    Real const zp = z - plunge_disp; // co-moving frame
-
-    for (int n = 0; n < m_cryo_n_solids; ++n)
+    // Mirror the parsed primitives into device memory once: the geometry is
+    // fixed for the run, so the per-cell stamper only ever reads this array.
+    // (On a CPU build this is an arena allocation in host memory.)
+    m_cryo_solids_d.resize(m_cryo_solids.size());
+    if (!m_cryo_solids.empty())
     {
-        auto const &s = m_cryo_solids[n];
-
-        if (s.shape == 2)
-        {
-            // Serration: carve notches from the leading (bottom, z' < zc) arc
-            // back to fluid. Velocity is left as-is, matching cells the moving
-            // solid vacates.
-            if (cell_type_ijk == -1) { continue; }
-            Real const rx = x;
-            Real const rz = zp - s.serr_zc;
-            if (rz >= Real(0.0)) { continue; }            // trailing half: untouched
-            Real const r2 = rx * rx + rz * rz;
-            Real const Ri = s.serr_R - s.serr_depth;
-            if (r2 <= Ri * Ri) { continue; }              // inside tooth root circle
-            Real const theta = std::atan2(rx, -rz);       // 0 at bottom of arc
-            Real frac = theta * Real(s.serr_nteeth) / Real(2.0 * M_PI);
-            frac -= std::floor(frac);
-            if (frac >= s.serr_duty)
-            {
-                cell_type_ijk = -1;
-            }
-            continue;
-        }
-
-        if (s.shape == 4)
-        {
-            // Gear-rim: annular ring at the disk edge with teeth extruding in ±y.
-            // Base ring: r in [rim_r_inner, rim_r_outer], |y| < rim_base_hy.
-            // Teeth:     at tooth angular sectors, |y| < rim_base_hy + rim_tooth_h.
-            Real const rx = x;
-            Real const rz = zp - s.rim_zc;
-            Real const r2 = rx * rx + rz * rz;
-            if (r2 < s.rim_r_inner * s.rim_r_inner) { continue; }
-            if (r2 > s.rim_r_outer * s.rim_r_outer) { continue; }
-            Real const aby = amrex::Math::abs(y);
-            if (aby >= s.rim_base_hy + s.rim_tooth_h) { continue; }
-            if (aby < s.rim_base_hy)
-            {
-                // inside base ring regardless of angle
-            }
-            else
-            {
-                // in the tooth extension zone — check angular sector
-                Real const theta = std::atan2(rx, rz);   // [-pi, pi]
-                Real frac = (theta + Real(M_PI)) * Real(s.rim_nteeth) / Real(2.0 * M_PI);
-                frac -= std::floor(frac);
-                if (frac >= s.rim_duty) { continue; }    // gap sector: not a tooth
-            }
-            cell_type_ijk = s.material;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = velz_plunge;
-            continue;
-        }
-
-        // bar / vane / ring: inside-test in the (possibly oscillation-shifted,
-        // possibly rotated) reference frame. attach = plunger uses the
-        // co-moving frame z'; attach = lab uses the lab frame z with a zero
-        // base velocity (the disk sweeps past the obstacle).
-        Real const zf = (s.attach == 1) ? z : zp;
-        Real const vbase = (s.attach == 1) ? Real(0.0) : velz_plunge;
-
-        Real offx = Real(0.0), offz = Real(0.0);
-        Real voscx = Real(0.0), voscz = Real(0.0);
-        if (s.osc_axis >= 0 && s.osc_amp != Real(0.0) && s.osc_freq != Real(0.0))
-        {
-            Real const w = Real(2.0 * M_PI) * s.osc_freq;
-            Real const d = s.osc_amp * std::sin(w * time + s.osc_phase);
-            Real const v = s.osc_amp * w * std::cos(w * time + s.osc_phase);
-            if (s.osc_axis == 0) { offx = d; voscx = v; }
-            else                 { offz = d; voscz = v; }
-        }
-
-        Real px = x - (s.cx + offx);
-        Real const py = y - s.cy;
-        Real pz = zf - (s.cz + offz);
-
-        bool inside = false;
-        if (s.shape == 3)
-        {
-            // ring: annulus about the y axis (co-planar with the disk)
-            Real const rr2 = px * px + pz * pz;
-            inside = amrex::Math::abs(py) < s.hy &&
-                     rr2 > s.ring_r0 * s.ring_r0 &&
-                     rr2 < s.ring_r1 * s.ring_r1;
-        }
-        else
-        {
-            if (s.angle != Real(0.0))
-            {
-                Real const c = std::cos(s.angle);
-                Real const sn = std::sin(s.angle);
-                Real const qx = c * px + sn * pz;
-                Real const qz = -sn * px + c * pz;
-                px = qx;
-                pz = qz;
-            }
-            inside = amrex::Math::abs(px) < s.hx &&
-                     amrex::Math::abs(py) < s.hy &&
-                     amrex::Math::abs(pz) < s.hz;
-        }
-
-        if (inside)
-        {
-            cell_type_ijk = s.material;
-            velx = voscx;
-            vely = Real(0.0);
-            velz = vbase + voscz;
-        }
+        Gpu::copyAsync(Gpu::hostToDevice, m_cryo_solids.begin(), m_cryo_solids.end(),
+                       m_cryo_solids_d.begin());
+        Gpu::streamSynchronize();
     }
-}
-
-void incflo::cryo_set_geom_velocity(int i, int j, int k,
-                                    Real x, Real y, Real z,
-                                    Real &velx, Real &vely, Real &velz,
-                                    int &cell_type_ijk,
-                                    Real time,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
-                                    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
-{
-    BL_PROFILE("incflo::cryo_set_geom_velocity");
-
-#if (AMREX_SPACEDIM == 2)
-    amrex::Abort("cryo_update: not implemented in 2D");
-
-#elif (AMREX_SPACEDIM == 3)
-
-    // ***************************************************************
-    // Plunging protocols
-    // ***************************************************************
-
-    Real velz_plunge, plunge_disp;
-    cryo_plunge_state(time, velz_plunge, plunge_disp);
-
-    // ***************************************************************
-    // Set geometry and velocity based on the plunging protocol
-    // ***************************************************************
-
-    if (cryo_grid::GridGeom const *grid = cryo_grid::read_grid_geom(m_cryo_geometry))
-    {
-        // Disk family (gold EM grid / sapphire / diamond): a thin disk in the
-        // x-z plane, normal along y, plunged edge-on. The disk body and its
-        // optional +y-face sample layer co-move, so share the plunge velocity.
-        // See cryo_grid.H for the per-material table.
-        Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid->radius;
-        Real const zoff = init_z + plunge_disp;
-        if (!cryo_grid::apply_disk(*grid, x, y, z, zoff,
-                                   m_cryo_sample_layer, m_cryo_sample_layer_thickness,
-                                   cell_type_ijk, velx, vely, velz, velz_plunge))
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == -1)
-    {
-        // -1: debug sphere, static
-        Real Rdebug = 0.2;
-        Real zoff = -2. * Rdebug + plunge_disp;
-        Real geom_sphere = x * x + y * y + (z - zoff) * (z - zoff);
-        if (geom_sphere < Rdebug * Rdebug)
-        {
-            cell_type_ijk = -6;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = velz_plunge;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == 10)
-    {
-        // 10: Thermocouple probe, 60 um bead diameter with 25 um wire.
-        // The spline-based motion is time-only, so compute it once here and
-        // then apply the same kinematics to every cell in the probe body.
-        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
-
-        // The existing cryo setup uses cell_type -2 for thermocouple material.
-        // Model the bead as a sphere centered on the plunge path.
-        Real const rtc1 = Real(0.03); // 60 um diameter -> 0.03 mm radius
-        Real const zz = z - rtc1 + motion.depth;
-        Real const geometry = x * x + y * y + zz * zz;
-
-        if (geometry < rtc1 * rtc1)
-        {
-            cell_type_ijk = -2;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = -motion.speed;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == 11)
-    {
-        // 11: Thermocouple probe, 100 um bead diameter with 25 um wire.
-        // The spline-based motion is time-only, so compute it once here and
-        // then apply the same kinematics to every cell in the probe body.
-        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
-
-        // The existing cryo setup uses cell_type -2 for thermocouple material.
-        // Model the bead as a sphere centered on the plunge path.
-        Real const rtc1 = Real(0.0425); // 85 um diameter -> 0.0425 mm radius
-        Real const zz = z - rtc1 + motion.depth;
-        Real const geometry = x * x + y * y + zz * zz;
-
-        if (geometry < rtc1 * rtc1)
-        {
-            cell_type_ijk = -2;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = -motion.speed;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-    else if (m_cryo_geometry == 12)
-    {
-        // 12: Thermocouple probe, 400 um bead diameter with 127 um wire.
-        // The spline-based motion is time-only, so compute it once here and
-        // then apply the same kinematics to every cell in the probe body.
-        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
-
-        // The existing cryo setup uses cell_type -2 for thermocouple material.
-        // Model the bead as a sphere centered on the plunge path.
-        Real const rtc1 = Real(0.21); // 420 um diameter -> 0.21 mm radius
-        Real const zz = z - rtc1 + motion.depth;
-        Real const geometry = x * x + y * y + zz * zz;
-
-        if (geometry < rtc1 * rtc1)
-        {
-            cell_type_ijk = -2;
-            velx = Real(0.0);
-            vely = Real(0.0);
-            velz = -motion.speed;
-        }
-        else
-        {
-            cell_type_ijk = -1;
-        }
-    }
-
-#endif
-}
-
-void incflo::cryo_set_thermal(int i, int j, int k,
-                              Real x, Real y, Real z,
-                              int cell_type_ijk,
-                              Real time,
-                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
-                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &problo,
-                              amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
-{
-    BL_PROFILE("incflo::cryo_set_thermal");
-
-#if (AMREX_SPACEDIM == 2)
-    amrex::Abort("cryo_set_thermal: not implemented in 2D");
-
-#elif (AMREX_SPACEDIM == 3)
-    //
-    return;
-#endif
-}
-
-void incflo::cryo_set_temp_top_bc(Real z, Real &temperature_ijk, int cell_type_ijk,
-                                  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &dx,
-                                  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const &probhi)
-{
-    BL_PROFILE("incflo::cryo_set_temp_top_bc");
-
-#if (AMREX_SPACEDIM == 2)
-    amrex::Abort("cryo_set_temp_top_bc: not implemented in 2D");
-
-#elif (AMREX_SPACEDIM == 3)
-    // TODO: add a check on the m_cryo_geometry type
-    if (z >= probhi[2] - dx[2] && cell_type_ijk != -1)
-    {
-        // Set top temperature boundary condition for solid cells
-        temperature_ijk = m_cryo_temp_entry;
-    }
-    //  else {
-    //     // Set top temperature boundary condition for fluid cells
-    //     temperature_ijk = m_cryo_temp_eth;
-    // }
-#endif
 }
 
 #endif
