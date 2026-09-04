@@ -994,14 +994,26 @@ private:
     void fillpatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillpatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
     void fillpatch_force (amrex::Real time, amrex::Vector<amrex::MultiFab*> const& force, int ng);
+
+    // NOTE: public only because CUDA forbids an extended __device__ lambda
+    // inside a private or protected member function, and the kernels in these
+    // bodies are device lambdas. Not part of the intended interface.
+public:
     void fillpatch_cell_type (int lev, amrex::Real time, amrex::iMultiFab& cell_type, int ng);
+private:
 
     void fillcoarsepatch_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillcoarsepatch_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);
     void fillcoarsepatch_tracer (int lev, amrex::Real time, amrex::MultiFab& tracer, int ng);
     void fillcoarsepatch_temperature (int lev, amrex::Real time, amrex::MultiFab& temperature, int ng);
     void fillcoarsepatch_gradp (int lev, amrex::Real time, amrex::MultiFab& gp, int ng);
+
+    // NOTE: public only because CUDA forbids an extended __device__ lambda
+    // inside a private or protected member function, and the kernels in these
+    // bodies are device lambdas. Not part of the intended interface.
+public:
     void fillcoarsepatch_cell_type (int lev, amrex::Real time, amrex::iMultiFab& cell_type, int ng);
+private:
 
     void fillphysbc_velocity (int lev, amrex::Real time, amrex::MultiFab& vel, int ng);
     void fillphysbc_density (int lev, amrex::Real time, amrex::MultiFab& density, int ng);
@@ -1113,11 +1125,17 @@ private:
 
     void WriteHeader (const std::string& name, bool is_checkpoint) const;
     void WriteJobInfo (const std::string& path) const;
+
+    // NOTE: public only because CUDA forbids an extended __device__ lambda
+    // inside a private or protected member function, and the kernels in these
+    // bodies are device lambdas. Not part of the intended interface.
+public:
     void WriteCheckPointFile () const;
-    void WritePlotFile ();
     void WritePlotVariables (amrex::Vector<std::string> vars, const std::string& plotfilename);
-    virtual void WriteSmallPlotFile ();
     void ReadCheckpointFile ();
+private:
+    void WritePlotFile ();
+    virtual void WriteSmallPlotFile ();
 
     ///////////////////////////////////////////////////////////////////////////
     //

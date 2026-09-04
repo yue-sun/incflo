@@ -32,6 +32,11 @@ amrex::Gpu::DeviceVector<cryo_stamp::Solid> m_cryo_solids_d;
 // Discrete biological samples (see cryo_sample.{H,cpp})
 #include <cryo_sample.H>
 
+// cryo_update runs an extended __device__ lambda, which CUDA does not allow
+// inside a private or protected member function, so the cryo entry points are
+// public. The data members above stay private.
+public:
+
 void cryo_read_solids();
 
 void cryo_plunge_state(amrex::Real time,
@@ -54,5 +59,7 @@ void cryo_update(amrex::Real time = amrex::Real(-1.0));
 cryo_stamp::DiskParams cryo_disk_params(amrex::Real velz_plunge,
                                         amrex::Real plunge_disp,
                                         cryo_tc::ThermocoupleMotion const &motion) const;
+
+private:   // restore the access level incflo.H had before including this header
 
 #endif

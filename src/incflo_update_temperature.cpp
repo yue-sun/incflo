@@ -230,9 +230,16 @@ void incflo::write_temperature_stats()
         auto const &dx = geom[lev].CellSizeArray();
         Real const cell_vol = AMREX_D_TERM(dx[0], *dx[1], *dx[2]);
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        // NO `#pragma omp parallel` on this loop. The bins below are updated with
+        // Gpu::Atomic::*, which is a genuine atomic only in device code — on the
+        // host it compiles to a plain read-modify-write (only
+        // HostDevice::Atomic::Add emits `#pragma omp atomic`, and there is no
+        // HostDevice Min/Max at all). Threading this loop therefore silently
+        // loses updates: with 8 threads the gold-grid case under-counted ethane
+        // cells 825846 -> 136433 and reported max_T 104.55 K instead of 270.75 K.
+        // This diagnostic is ~0.3% of a step and runs every cryo_temp_stats_int
+        // steps, so a serial host loop costs nothing. The GPU path is unaffected
+        // (device atomics are real) and keeps its parallelism inside ParallelFor.
         for (MFIter mfi(ld.temperature, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box const &bx = mfi.tilebox();
