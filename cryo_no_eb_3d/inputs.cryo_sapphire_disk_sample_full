@@ -52,6 +52,7 @@ incflo.cryo_sample_layer = 0
 incflo.cryo_sample_place = "../../data/samples/cells.samples_full"
 
 incflo.dt_min           =   1e-3
+incflo.cryo_plunge_protocol = sim_inputs      # step-function speed from cryo_plunge_vel/_time below; 'tc_experiment' uses the measured TC trajectory instead
 incflo.cryo_plunge_vel  =   -1.0  0.0
 incflo.cryo_plunge_time =    0.0  6.0
 incflo.cryo_temp_entry  =   273.15

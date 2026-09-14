@@ -49,8 +49,7 @@ incflo.probtype         =   3000
 incflo.sim_cryo         =   true
 incflo.cryo_geometry    =   11
 incflo.dt_min           =   1e-3
-incflo.cryo_plunge_vel  =   -1.0  0.0
-incflo.cryo_plunge_time =    0.0  6.0
+incflo.cryo_plunge_protocol = tc_experiment   # measured linear-motor trajectory (cryo_tc_experiment.cpp); cryo_plunge_vel/_time are not used
 incflo.cryo_temp_entry  =   244.0
 incflo.cryo_temp_eth    =   95.6
 

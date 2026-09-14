@@ -41,6 +41,7 @@ incflo.probtype         =   3000
 incflo.sim_cryo         =   true
 incflo.cryo_geometry    =   -1
 incflo.dt_min           =   1e-3
+incflo.cryo_plunge_protocol = sim_inputs      # step-function speed from cryo_plunge_vel/_time below; 'tc_experiment' uses the measured TC trajectory instead
 incflo.cryo_plunge_vel  =   -1.0  1.0 -1.0  1.0  0.0
 incflo.cryo_plunge_time =    0.0  6.0  7.0  8.0  9.0
 incflo.cryo_temp_entry  =   270.0

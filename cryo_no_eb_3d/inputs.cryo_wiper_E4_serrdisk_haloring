@@ -47,6 +47,7 @@ incflo.cryo_sample_layer           = 1
 incflo.cryo_sample_layer_thickness = 0.05   # 50 um, in mm
 
 incflo.dt_min           =   1e-3
+incflo.cryo_plunge_protocol = sim_inputs      # step-function speed from cryo_plunge_vel/_time below; 'tc_experiment' uses the measured TC trajectory instead
 incflo.cryo_plunge_vel  =   -2.0  0.0
 incflo.cryo_plunge_time =    0.0  3.0
 incflo.cryo_temp_entry  =   273.15
