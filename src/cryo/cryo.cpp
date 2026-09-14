@@ -26,16 +26,14 @@ void incflo::cryo_update(Real time)
 #elif (AMREX_SPACEDIM == 3)
 
     // Time-only kinematics and scalar inputs, evaluated ONCE here instead of
-    // per cell: cryo_plunge_state walks the prescribed-protocol Vectors and
-    // cryo_tc::evaluate_motion is two 21-segment spline searches, and both
-    // depend on `time` alone. Everything the per-cell path needs is then POD
+    // per cell: cryo_plunge_state either walks the sim_inputs table or runs two
+    // 21-segment spline searches for tc_experiment, and depends on `time` alone. Everything the per-cell path needs is then POD
     // (cryo_stamp::DiskParams / SampleData + a device pointer for the solids),
     // so the kernel below never dereferences `this`.
     Real velz_plunge, plunge_disp;
     cryo_plunge_state(time, velz_plunge, plunge_disp);
-    cryo_tc::ThermocoupleMotion const tc_motion = cryo_tc::evaluate_motion(time);
 
-    cryo_stamp::DiskParams const disk = cryo_disk_params(velz_plunge, plunge_disp, tc_motion);
+    cryo_stamp::DiskParams const disk = cryo_disk_params(velz_plunge, plunge_disp);
     cryo_stamp::SampleData const samples = cryo_sample_data(m_cryo_geometry, plunge_disp);
     cryo_stamp::Solid const* solids_p = m_cryo_solids_d.dataPtr();
     int const n_solids = m_cryo_n_solids;
@@ -97,15 +95,76 @@ void incflo::cryo_update(Real time)
 #endif
 }
 
+void incflo::cryo_read_plunge_protocol()
+{
+    ParmParse pp("incflo");
+
+    // Required: no default. A cryo run must say where its kinematics come from
+    // (before this key existed, geometries 10/11/12 silently used the measured
+    // trajectory while cryo_plunge_vel sat in the input file doing nothing).
+    std::string protocol;
+    if (!pp.query("cryo_plunge_protocol", protocol))
+    {
+        amrex::Abort("incflo.cryo_plunge_protocol is required for a cryo run: "
+                     "set it to 'sim_inputs' (piecewise-constant cryo_plunge_vel "
+                     "over cryo_plunge_time) or 'tc_experiment' (the measured "
+                     "linear-motor trajectory in cryo_tc_experiment.cpp)");
+    }
+
+    if (protocol == "sim_inputs")      { m_cryo_plunge_protocol = PlungeProtocol::sim_inputs; }
+    else if (protocol == "tc_experiment") { m_cryo_plunge_protocol = PlungeProtocol::tc_experiment; }
+    else
+    {
+        amrex::Abort("incflo.cryo_plunge_protocol = '" + protocol +
+                     "' is not recognized; use 'sim_inputs' or 'tc_experiment'");
+    }
+
+    if (m_cryo_plunge_protocol == PlungeProtocol::sim_inputs)
+    {
+        int const n_plunge_vel = pp.countval("cryo_plunge_vel");
+        int const n_plunge_time = pp.countval("cryo_plunge_time");
+        m_cryo_plunge_vel.resize(n_plunge_vel);
+        m_cryo_plunge_time.resize(n_plunge_time);
+        pp.queryarr("cryo_plunge_vel", m_cryo_plunge_vel);
+        pp.queryarr("cryo_plunge_time", m_cryo_plunge_time);
+
+        // These used to fall back to a silent -1.0 mm/ms; with the protocol
+        // stated explicitly, an unusable table is an error instead.
+        if (n_plunge_vel == 0 || n_plunge_time == 0)
+        {
+            amrex::Abort("cryo_plunge_protocol = sim_inputs needs both "
+                         "cryo_plunge_vel and cryo_plunge_time");
+        }
+        if (n_plunge_vel != n_plunge_time)
+        {
+            amrex::Abort("cryo_plunge_vel and cryo_plunge_time must have the same number of entries");
+        }
+    }
+}
+
 void incflo::cryo_plunge_state(Real time, Real &velz_plunge, Real &plunge_disp) const
 {
-    // Default plunging protocol
-    velz_plunge = Real(-1.0);
-    plunge_disp = velz_plunge * time;
+    // The single evaluation point for the plunging kinematics, whichever
+    // protocol is in use. Sign convention (shared by every consumer):
+    // velz_plunge < 0 and plunge_disp < 0 mean descending, i.e. -z.
+    // Both are functions of `time` alone, which is what makes restarts work.
+    if (m_cryo_plunge_protocol == PlungeProtocol::tc_experiment)
+    {
+        // Measured linear-motor trajectory. The speed and position splines are
+        // independent fits, so velz_plunge is not exactly d(plunge_disp)/dt
+        // (~0.4% over the first interval); that is how geometries 10/11/12 have
+        // always been driven and is well inside the off-stamp error the
+        // projection already absorbs. cryo_tc uses speed > 0 / depth > 0 for
+        // descending, hence the sign flips.
+        cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
+        velz_plunge = -motion.speed;
+        plunge_disp = -motion.depth;
+        return;
+    }
 
-    // Load prescribed plunging protocol if provided
-    if (!m_cryo_plunge_vel.empty() &&
-        m_cryo_plunge_vel.size() == m_cryo_plunge_time.size())
+    // sim_inputs: piecewise-constant velocity from the input file, integrated
+    // to a displacement. cryo_read_plunge_protocol has already checked that the
+    // two arrays are present and the same length.
     {
         int const nintervals = static_cast<int>(m_cryo_plunge_vel.size());
         velz_plunge = m_cryo_plunge_vel[0];
@@ -142,8 +201,7 @@ void incflo::cryo_plunge_state(Real time, Real &velz_plunge, Real &plunge_disp) 
 // Resolve the geometry preset once per update: the disk-table row (if this
 // geometry is a disk), its centre z for this time, and the time-only kinematics.
 // The result is POD and is what the device stamper reads instead of members.
-cryo_stamp::DiskParams incflo::cryo_disk_params (Real velz_plunge, Real plunge_disp,
-                                                cryo_tc::ThermocoupleMotion const &motion) const
+cryo_stamp::DiskParams incflo::cryo_disk_params (Real velz_plunge, Real plunge_disp) const
 {
     cryo_stamp::DiskParams p;
     p.geometry = m_cryo_geometry;
@@ -151,7 +209,6 @@ cryo_stamp::DiskParams incflo::cryo_disk_params (Real velz_plunge, Real plunge_d
     p.sample_layer_thickness = m_cryo_sample_layer_thickness;
     p.velz_plunge = velz_plunge;
     p.plunge_disp = plunge_disp;
-    p.motion = motion;
 
     p.is_disk = cryo_grid::read_grid_geom(m_cryo_geometry, p.grid);
     if (p.is_disk)

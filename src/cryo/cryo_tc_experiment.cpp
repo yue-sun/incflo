@@ -28,6 +28,17 @@ namespace cryo_tc
         ThermocoupleMotion motion;
         motion.speed = cryo_interp::eval_piecewise_cubic(time_clamped, xs, speed_c);
         motion.depth = cryo_interp::eval_piecewise_cubic(time_clamped, xs, pos_c) - amrex::Real(230.0438);
+
+        // Outside the measured window the clamp freezes `depth` at its end
+        // value, so a nonzero `speed` there would stamp a velocity onto a rig
+        // that is no longer moving (at t = 42 ms the fit is still retracting at
+        // -0.097 mm/ms). Report it as stopped instead. No current run reaches
+        // either edge -- the plunge runs are <= 5 ms -- so this only removes a
+        // trap for longer runs.
+        if (time < amrex::Real(0.0) || static_cast<double>(time) > xs[num_intervals])
+        {
+            motion.speed = amrex::Real(0.0);
+        }
         return motion;
     }
 

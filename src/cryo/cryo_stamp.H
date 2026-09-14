@@ -12,7 +12,6 @@
 #include <cmath>
 
 #include <cryo_grid.H>
-#include <cryo_tc_experiment.H>
 
 // ===========================================================================
 // Device-callable per-cell stamping of the cryo geometry.
@@ -26,9 +25,11 @@
 //     must be visible in the translation unit that launches the kernel --
 //     hence a header rather than cryo.cpp.
 //
-// The geometry data itself lives in cryo_grid.H (disk table + apply_disk); the
-// thermocouple motion spline stays host-only and is evaluated once per update
-// (it is time-only) and passed in by value.
+// The geometry data itself lives in cryo_grid.H (disk table + apply_disk). The
+// plunging kinematics arrive as plain numbers in DiskParams: incflo::
+// cryo_plunge_state resolves the protocol (sim_inputs table or the measured
+// tc_experiment splines) once per update on the host, so nothing here needs to
+// know which protocol is in force.
 // ===========================================================================
 
 namespace cryo_stamp
@@ -135,7 +136,6 @@ namespace cryo_stamp
         amrex::Real sample_layer_thickness = amrex::Real(0.0);
         amrex::Real velz_plunge = amrex::Real(0.0);
         amrex::Real plunge_disp = amrex::Real(0.0);
-        cryo_tc::ThermocoupleMotion motion{};   // evaluated once per update (time-only)
     };
 
     ///////////////////////////////////////////////////////////////////////////
@@ -195,7 +195,9 @@ namespace cryo_stamp
             amrex::Real const rtc1 = (p.geometry == 10) ? amrex::Real(0.03)
                                    : (p.geometry == 11) ? amrex::Real(0.0425)
                                                         : amrex::Real(0.21);
-            amrex::Real const zz = z - rtc1 + p.motion.depth;
+            // Same kinematics as every other geometry: plunge_disp < 0 while
+            // descending, so the bead centre sits at z = rtc1 + plunge_disp.
+            amrex::Real const zz = z - rtc1 - p.plunge_disp;
             amrex::Real const geometry = x * x + y * y + zz * zz;
 
             if (geometry < rtc1 * rtc1)
@@ -203,7 +205,7 @@ namespace cryo_stamp
                 cell_type_ijk = -2;
                 velx = amrex::Real(0.0);
                 vely = amrex::Real(0.0);
-                velz = -p.motion.speed;
+                velz = p.velz_plunge;
             }
             else
             {

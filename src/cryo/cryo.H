@@ -22,6 +22,16 @@ amrex::Real rdebug = amrex::Real(0.5); // debug sphere radius: 0.5mm
 amrex::Real wsam = amrex::Real(0.01); // sample width: 10um
 
 
+// Where the plunging kinematics come from. Required input key
+// incflo.cryo_plunge_protocol; there is deliberately no default, so a run must
+// state which protocol it uses (the TC geometries used to take the measured
+// trajectory silently, while cryo_plunge_vel sat in the input file doing
+// nothing). Applies to every cryo geometry.
+//   sim_inputs    : piecewise-constant cryo_plunge_vel over cryo_plunge_time
+//   tc_experiment : the measured linear-motor trajectory in cryo_tc_experiment
+enum class PlungeProtocol { sim_inputs, tc_experiment };
+PlungeProtocol m_cryo_plunge_protocol = PlungeProtocol::sim_inputs;  // placeholder only: cryo_read_plunge_protocol() aborts unless the key is set
+
 // Wiper/obstacle primitives. The POD definition lives in cryo_stamp.H so the
 // per-cell stamper can be a device function; m_cryo_solids_d is the device
 // mirror uploaded once by cryo_read_solids.
@@ -57,8 +67,11 @@ void cryo_update(amrex::Real time = amrex::Real(-1.0));
 // geometry preset (disk-table row, its z offset) and the time-only kinematics
 // once per update, so the per-cell path touches no incflo member.
 cryo_stamp::DiskParams cryo_disk_params(amrex::Real velz_plunge,
-                                        amrex::Real plunge_disp,
-                                        cryo_tc::ThermocoupleMotion const &motion) const;
+                                        amrex::Real plunge_disp) const;
+
+// Parse + validate incflo.cryo_plunge_protocol (and, for sim_inputs, the
+// cryo_plunge_vel / cryo_plunge_time table it needs).
+void cryo_read_plunge_protocol();
 
 private:   // restore the access level incflo.H had before including this header
 

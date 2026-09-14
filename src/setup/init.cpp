@@ -183,16 +183,8 @@ void incflo::ReadParameters ()
             pp.query("cryo_sample_layer", m_cryo_sample_layer);
             pp.query("cryo_sample_layer_thickness", m_cryo_sample_layer_thickness);
             pp.query("dt_min", m_dt_min);
-            // Parse plunging protocol
-            int n_plunge_vel = pp.countval("cryo_plunge_vel");
-            int n_plunge_time = pp.countval("cryo_plunge_time");
-            m_cryo_plunge_vel.resize(n_plunge_vel);
-            m_cryo_plunge_time.resize(n_plunge_time);
-            pp.queryarr("cryo_plunge_vel", m_cryo_plunge_vel);
-            pp.queryarr("cryo_plunge_time", m_cryo_plunge_time);
-            if (n_plunge_vel != n_plunge_time) {
-                amrex::Abort("cryo_plunge_vel and cryo_plunge_time must have the same number of entries");
-            }
+            // Plunging protocol: which kinematics drive every cryo geometry.
+            cryo_read_plunge_protocol();
             pp.query("cryo_temp_entry", m_cryo_temp_entry);
             pp.query("cryo_temp_eth", m_cryo_temp_eth);
             pp.query("cryo_disk_init_z", m_cryo_disk_init_z);

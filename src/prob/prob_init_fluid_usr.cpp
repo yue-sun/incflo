@@ -18,14 +18,13 @@ void incflo::init_cryo_plunging (amrex::Box const& vbx, amrex::Box const& /*gbx*
 
 #elif (AMREX_SPACEDIM == 3)
 #ifdef INCFLO_SIM_CRYO
-    // Pack every per-cell input once, on the host: the plunging protocol and
-    // the thermocouple-motion spline are time-only, and a device lambda must
-    // not dereference `this`. cryo_stamp::DiskParams is POD, so the kernel
-    // below captures values only.
+    // Pack every per-cell input once, on the host: the plunging kinematics are
+    // time-only (cryo_plunge_state resolves whichever protocol the inputs
+    // selected), and a device lambda must not dereference `this`.
+    // cryo_stamp::DiskParams is POD, so the kernel below captures values only.
     Real velz_plunge = Real(0.0), plunge_disp = Real(0.0);
     cryo_plunge_state(m_cur_time, velz_plunge, plunge_disp);
-    cryo_stamp::DiskParams const disk =
-        cryo_disk_params(velz_plunge, plunge_disp, cryo_tc::evaluate_motion(m_cur_time));
+    cryo_stamp::DiskParams const disk = cryo_disk_params(velz_plunge, plunge_disp);
     Real const l_time = m_cur_time;
     Real const temp_eth = m_cryo_temp_eth;
     Real const temp_entry = m_cryo_temp_entry;
