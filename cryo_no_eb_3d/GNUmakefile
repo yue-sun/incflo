@@ -15,8 +15,9 @@ DEBUG      = FALSE
 COMP	   = gnu
 
 USE_MPI    = FALSE
-USE_OMP    = TRUE
-USE_CUDA   = FALSE
+USE_OMP    = FALSE
+USE_CUDA   = TRUE
+CUDA_ARCH  = 86        # RTX A6000 = GA102 = sm_86 (must precede Make.incflo: Make.defs uses CUDA_ARCH ?= 70)
 
 USE_HYPRE = FALSE
 BL_NO_FORT = TRUE
