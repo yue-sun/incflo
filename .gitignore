@@ -56,11 +56,17 @@ test/tmp_build_dir/
 test/Backtrace.*
 test/*plt*/
 test/chk*/
-cryo*/*.ex
-cryo*/tmp_build_dir/
-cryo*/Backtrace.*
-cryo*/*plt*/
-cryo*/chk*/
-cryo*/*.py
-cryo*/*.pvsm
-cryo*/*.dat
+# Case directories (cryo_3d, cryo_no_eb_3d) hold exactly three kinds of tracked
+# file -- GNUmakefile, inputs.*, *.sh -- and everything else in them is build or
+# run output: *.ex, tmp_build_dir/, plt*/, chk*/, Backtrace.*, *.dat, and one
+# directory per run.
+#
+# Allowlist rather than blocklist. A blocklist needs a new rule every time a run
+# script invents a new output name (gpu_smoke_0915_221544/, tc1/, L3_0916_0830/);
+# this catches them the day they appear, with nothing to remember. Adding a new
+# kind of *tracked* file to a case dir needs a new "!" line below -- or a one-off
+# `git add -f <path>`.
+cryo*/*
+!cryo*/GNUmakefile
+!cryo*/inputs.*
+!cryo*/*.sh
