@@ -91,6 +91,27 @@ incflo::compute_MAC_projected_velocities (
     }
 
     //
+    // ClearLevel() resets macproj whenever a level is deleted, and nothing
+    // rebuilds it when the hierarchy *shrinks*: RemakeLevel() and
+    // MakeNewLevelFromScratch() only run for levels that still exist.  So a
+    // regrid that empties the finest level (e.g. solid-only tagging while the
+    // solid is outside the domain) leaves this null and the needInitialization()
+    // below segfaults.  Rebuild lazily, the same way get_diffusion_tensor_op()
+    // and get_diffusion_scalar_op() cope with being reset in that same function.
+    //
+    if (!macproj)
+    {
+#ifdef AMREX_USE_EB
+        macproj = std::make_unique<Hydro::MacProjector>(Geom(0,finest_level),
+                          MLMG::Location::FaceCentroid,  // Location of mac_vec
+                          MLMG::Location::FaceCentroid,  // Location of beta
+                          MLMG::Location::CellCenter  ); // Location of solution variable phi
+#else
+        macproj = std::make_unique<Hydro::MacProjector>(Geom(0,finest_level));
+#endif
+    }
+
+    //
     // Initialize (or redefine the beta in) the MacProjector
     //
     if (macproj->needInitialization())
