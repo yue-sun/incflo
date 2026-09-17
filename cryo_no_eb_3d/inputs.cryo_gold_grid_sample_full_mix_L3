@@ -1,0 +1,191 @@
+# L3 variant of inputs.cryo_gold_grid_sample_full_mix_coarse.
+#
+# Purpose: measure magvel.max() at dx = 3.906 um to test whether the L3 timestep
+# is genuinely advection-limited or is being throttled by spurious velocities at
+# the solid stamp.  The L2 run reaches dt ~ 0.0088 ms, which matches the physical
+# plunge speed (~0.95 mm/ms) exactly; the TODO records 1.8e-4 ms at L3, implying
+# ~10.8 mm/ms, i.e. 11x the plunge.  If that gap is spurious, closing it is worth
+# more than every other speedup on the list combined.
+#
+# Differences from the coarse input, all marked below:
+#   max_level      2 -> 3
+#   max_grid_size  32 -> 64 at the fine levels
+#   temperr / gradspeederr disabled at level 2, gradtemperr kept at 10 K (memory)
+#   stats file renamed
+#
+# Everything else -- including nodal_proj.mg_rtol = 1e-9 and cfl = 0.5 -- is left
+# alone on purpose: changing the projection tolerance would change the very
+# post-stamp velocities this run is meant to measure.
+#
+# 2026-09-15 fix: the first version segfaulted at step 31.  With solid-only
+# tagging AND the disk still above the domain, nothing tagged level 2 once
+# tag_region expired at t = 0.03, level 3 emptied, and incflo dereferenced a
+# null macproj.  cryo_disk_init_z = 0 and tag_region = false were the fix.
+#
+# 2026-09-15, later: cryo_disk_init_z reverted at user request, so the disk again
+# starts above prob_hi z = 0 and is NOT in the domain at t = 0.  With
+# tag_region = false as well, nothing tags anything at t = 0 (uniform 90 K, no
+# solid), so the hierarchy starts at level 0 only and levels appear/disappear as
+# the warm inflow develops -- which is exactly the condition that trips the null
+# macproj.  Either put tag_region back to true, or guard macproj in
+# incflo_compute_MAC_projected_velocities.cpp.  Do one of the two.
+#
+# CAVEAT on calibrating gradtemperr: at t ~ 0 the temperature field is a
+# two-value step, so almost any threshold tags the same cells (the TODO records
+# 95 K/1 K and 200 K/15 K tagging identically at t=0).  A step-1 cell count is a
+# LOWER BOUND -- the count grows as the plume develops.  Leave headroom, keep
+# amrex.abort_on_out_of_gpu_memory=1, and re-check the count a few hundred steps
+# in.  If you need more room than the default arena gives, raise it toward the
+# card limit with e.g. amrex.the_arena_init_size=42000000000 (bytes).
+#
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            SIMULATION STOP            #
+#.......................................#
+stop_time               =   5.0       # Max (simulated) time to evolve
+max_step                =  -1           # Max number of time steps
+steady_state            =   0           # Steady-state solver?
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#         TIME STEP COMPUTATION         #
+#.......................................#
+incflo.fixed_dt         =   -1        # Use this constant dt if > 0
+incflo.cfl              =   0.5        # CFL factor
+incflo.thermal_cfl      =   10000.0
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            INPUT AND OUTPUT           #
+#.......................................#
+amr.plot_per_exact      =   0.1        # Steps between plot files
+amr.check_int           =   5000        # Steps between checkpoint files
+amr.restart             =   ""          # Checkpoint to restart from
+fab.format              =   NATIVE_32
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨
+#               PHYSICS                 #
+#.......................................#
+incflo.advection_type   =   "Godunov"      # Options: Godunov, MOL, BDS
+incflo.diffusion_type   =   2          # 0: Explicit, 1: Crank-Nicolson, 2: Implicit
+
+incflo.gravity          =   0.  0.  0.  # Gravitational force (3D)
+incflo.ro_0             =   1.          # Reference density
+
+incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
+incflo.mu               =   0.001966    # Dynamic viscosity coefficient
+
+#incflo.ntrac           =   1           # Number of tracers
+#incflo.advect_tracer   =   true        # Should we update them?
+#incflo.mu_s            =   0.00014     # Scalar diffusion coefficient
+#incflo.trac_is_conservative =   1
+
+incflo.use_temperature  =   true
+incflo.mu_T             =   0.000244    # For now using thermal diffusivity, but it should be thermal conductivity
+incflo.cp               =   1.0         # Set to 1 for now because the temperature update is non-conservative
+incflo.temp_iface_smooth_iters  =   4    # thin gold mesh bars: soften k(T)/cp(T) jump at metal/ethane interface; stabilizes implicit T-diffusion MLMG
+incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              CRYO PLUNGING            #
+#.......................................#
+incflo.probtype         =   3000
+incflo.sim_cryo         =   true
+incflo.cryo_geometry    =   3           # 3 = gold EM (TEM finder) grid wafer
+incflo.cryo_sample_layer = 0
+incflo.cryo_sample_place = "../../data/samples/cells.samples_mixed"
+
+incflo.dt_min           =   1e-3
+incflo.cryo_plunge_protocol = tc_experiment
+incflo.cryo_temp_entry  =   273.15
+incflo.cryo_temp_eth    =   90.0
+
+incflo.cryo_temp_stats_file = temperature_stats_full_mix_L3.dat
+# Every step, deliberately.  This was 10, the SAME cadence as amr.regrid_int, so
+# every sample landed immediately after a regrid and the max_T overshoot could
+# not be attributed: jumps at regrids (interpolation) and smooth growth (the
+# solve) look identical at that sampling rate.  At 1 they separate.
+incflo.cryo_temp_stats_int  = 1
+
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#        ADAPTIVE MESH REFINEMENT       #
+#.......................................#
+amr.n_cell              =   32 8 32  # Grid cells at coarsest AMRlevel
+amr.max_level           =   3           # Max AMR level in hierarchy (L3 dx = 3.906 um)
+amr.ref_ratio           =   4 4 4 4
+amr.max_grid_size       =   32 32 64 64  # per LEVEL (not per direction); 64 at the fine
+                                        # levels keeps the GPU fed and cuts ghost overhead
+amr.blocking_factor     =   8           # Blocking factor for grids
+amr.grid_eff            =   0.9
+amr.n_error_buf         =   2 2 2
+
+incflo.tag_region       =   true
+incflo.tag_region_time  =   0.03
+incflo.tag_region_lo    =   -0.5  -0.5  -0.5
+incflo.tag_region_hi    =    0.5   0.5   0.0
+amr.regrid_int          =   2
+incflo.tag_cell_type    =   true
+# Level-2 criteria decide what gets refined to L3.  Memory ceiling first: the
+# measured cost is ~1777 B/cell, so the default arena (3/4 of 48.5 GB = 36.4 GB)
+# holds ~20.5M cells total.  tag_cell_type alone is 10.06M, leaving ~10M of
+# headroom for the temperature criterion.  The full original settings
+# (temperr 95 / gradtemperr 1) give 31.1M cells = ~53 GB and do NOT fit.
+#
+#   temperr[2]     OFF.  This is the blunt one: "T > 95 K" tags every warm cell,
+#                  the whole plume, not the interface.  It is most of the 21M.
+#   gradtemperr[2] ON at 10 K.  Tags cells whose neighbour differs by >= 10 K,
+#                  i.e. >= 640 K/mm at dx2 = 15.6 um -- the steep part of the
+#                  thermal BL, which is what the BL-coupling analysis needs.
+#                  Lower it toward 1 to widen the refined band; each step costs
+#                  cells fast.  Calibrate with `./run_L3.sh 1` and read the
+#                  "Level 3 ... cells" line plus "max space used" (see header).
+#   gradspeederr[2] OFF.  Turn on only if you want the wake refined too; it is
+#                  additive on top of everything above.
+incflo.temperr          =   155. 120. 1.e9
+incflo.gradtemperr      =   20. 10. 10.
+incflo.gradspeederr     =   0.9 0.5 1.e9
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              GEOMETRY                 #
+#.......................................#
+geometry.prob_lo        =   -4.0  -1.0  -8.  # Lo corner coordinates
+geometry.prob_hi        =    4.0   1.0  0  # Hi corner coordinates
+geometry.is_periodic    =   0   0   0   # Periodicity x y z (0/1)
+
+# Boundary conditions
+xlo.type                =   "nsw"
+xlo.velocity            =   0.  0.  0.
+xhi.type                =   "nsw"
+xhi.velocity            =   0.  0.  0.
+ylo.type                =   "nsw"
+ylo.velocity            =   0.  0.  0.
+yhi.type                =   "nsw"
+yhi.velocity            =   0.  0.  0.
+zlo.type                =   "nsw"
+zlo.velocity            =   0.  0.  0.
+zlo.tracer              =   1.
+zhi.type                =   "pi"
+zhi.pressure            =   0.0
+zhi.temperature         =   273.15
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#           INITIAL CONDITIONS          #
+#.......................................#
+#incflo.ic_u             =   0.0         #
+#incflo.ic_v             =   0.0         #
+#incflo.ic_w             =   0.0         #
+#incflo.ic_p             =   0.0         #
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              VERBOSITY                #
+#.......................................#
+amr.verbose             =   2
+incflo.verbose          =   2          # incflo itself
+mac_proj.verbose        =   0          # MAC Projector
+nodal_proj.verbose      =   0          # Nodal Projector
+nodal_proj.mg_rtol      =   1e-9
+
+scalar_diffusion.verbose  =   0         # Scalar Diffusion
+tensor_diffusion.verbose  =   0         # Tensor Diffusion
+
+incflo.initial_iterations =   0
+
+amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p cp thermal_conductivity
