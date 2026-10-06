@@ -210,7 +210,7 @@ cryo_stamp::DiskParams incflo::cryo_disk_params (Real velz_plunge, Real plunge_d
     p.velz_plunge = velz_plunge;
     p.plunge_disp = plunge_disp;
 
-    p.is_disk = cryo_grid::read_grid_geom(m_cryo_geometry, p.grid);
+    p.is_disk = cryo_grid_geom(m_cryo_geometry, p.grid);
     if (p.is_disk)
     {
         Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z

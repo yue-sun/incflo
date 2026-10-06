@@ -193,6 +193,8 @@ void incflo::ReadParameters ()
             // Additive wiper/obstacle primitives (see cryo.H CryoSolid)
             cryo_read_solids();
             cryo_read_samples();
+            // Measured grid shape (from_map geometries, e.g. 6), see cryo_grid.cpp
+            cryo_read_grid();
         }
 #endif
 

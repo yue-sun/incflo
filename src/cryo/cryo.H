@@ -42,12 +42,29 @@ amrex::Gpu::DeviceVector<cryo_stamp::Solid> m_cryo_solids_d;
 // Discrete biological samples (see cryo_sample.{H,cpp})
 #include <cryo_sample.H>
 
+// Measured EM grid (from_map rows of the cryo_grid table, e.g. geometry 6):
+// height map read from incflo.cryo_grid_file and uploaded once by
+// cryo_read_grid (cryo_grid.cpp). m_cryo_grid_map holds the map header and
+// the device pointers into m_cryo_grid_hmap_d (the y_bottom plane, then y_top).
+std::string m_cryo_grid_file;
+cryo_grid::GridMap m_cryo_grid_map;
+amrex::Gpu::DeviceVector<short> m_cryo_grid_hmap_d;
+
 // cryo_update runs an extended __device__ lambda, which CUDA does not allow
 // inside a private or protected member function, so the cryo entry points are
 // public. The data members above stay private.
 public:
 
 void cryo_read_solids();
+
+// Read and upload the height map when cryo_geometry is a from_map row
+// (cryo_grid.cpp); a no-op for every other geometry.
+void cryo_read_grid();
+
+// The cryo_grid table row for `geometry`, with a from_map row's radius,
+// face_y and map filled in from the loaded height map. False if the
+// geometry is not a disk.
+bool cryo_grid_geom(int geometry, cryo_grid::GridGeom& grid) const;
 
 void cryo_plunge_state(amrex::Real time,
                        amrex::Real &velz_plunge,

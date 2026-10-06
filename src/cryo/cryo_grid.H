@@ -118,7 +118,34 @@ namespace cryo_grid
     // read_grid_geom() and the spec is returned BY VALUE. A namespace-scope
     // constexpr table would need its address taken in device code (returning
     // a pointer into it), which CUDA forbids.
+    //
+    // A disk can also come from a measured shape instead of the analytic
+    // rim + bars (from_map rows, e.g. geometry 6): a height map built from
+    // the grid's STL by data/grids/make_grid_hmap.py, read from
+    // incflo.cryo_grid_file and uploaded once by incflo::cryo_read_grid
+    // (cryo_grid.cpp), which also fills in that row's radius and face_y.
     // =======================================================================
+
+    // Device view of an uploaded height map. Per in-plane pixel (i, k) the
+    // solid occupies y_bottom <= y < y_top; pixel (i, k) covers
+    // [x0 + i*pixel, x0 + (i+1)*pixel) x [z0 + k*pixel, z0 + (k+1)*pixel) in
+    // the disk frame (z relative to the disk centre). Heights are int16 in
+    // units of `unit` -- plain `short`, because this block may not add an
+    // #include (the notebook regenerates the include list).
+    struct GridMap
+    {
+        short const* y_bottom = nullptr;    // nx*nz, index i + nx*k; `empty` = no solid
+        short const* y_top = nullptr;       // nx*nz, same layout
+        int nx = 0;
+        int nz = 0;
+        amrex::Real x0 = 0.0;               // [mm]
+        amrex::Real z0 = 0.0;               // [mm]
+        amrex::Real pixel = 0.0;            // in-plane spacing [mm]
+        amrex::Real unit = 0.0;             // height quantum [mm]
+        short empty = -32768;
+        amrex::Real radius = 0.0;           // disk radius from the map header [mm]
+        amrex::Real face_y = 0.0;           // top of the solid (+y face) from the map header [mm]
+    };
 
     struct GridGeom
     {
@@ -130,26 +157,51 @@ namespace cryo_grid
         amrex::Real rim_inner;      // mesh: inner radius of the solid support ring [mm]
         amrex::Real pitch;          // mesh: bar spacing [mm]
         amrex::Real bar_half;       // mesh: bar half-width [mm]
+        bool from_map = false;      // true = solid from the height map below, not the analytic shape
+        amrex::Real face_y = 0.0;   // +y face the samples sit on [mm]: half_thick, or the map's top
+        GridMap map{};              // from_map: the uploaded height map
     };
 
     // Geometry spec for this geometry id, copied into `grid`. Returns false
-    // (leaving `grid` untouched) if the id is not a disk.
+    // (leaving `grid` untouched) if the id is not a disk. A from_map row still
+    // needs its radius, face_y and map filled in from the loaded height map
+    // (incflo::cryo_grid_geom does that on the host).
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     bool read_grid_geom (int geom_id, GridGeom& grid) noexcept
     {
         // Geometry for the disk family. All lengths in mm.
         constexpr GridGeom grids[] = {
-            // id    R       w       mat   mesh    rim     pitch   bar
-            {  3, 1.525,  0.0125,  -3,   true,   1.285,  0.06,   0.0125 },  // gold EM grid: 3.05mm dia, 240um rim, 60um pitch
-            {  4, 1.5,    0.08,    -4,   false,  0.0,    0.0,    0.0    },  // sapphire (160um)
-            {  5, 1.5,    0.05,    -5,   false,  0.0,    0.0,    0.0    },  // diamond (100um)
+            // id    R       w       mat   mesh    rim     pitch   bar     from_map
+            {  3, 1.525,  0.0125,  -3,   true,   1.285,  0.06,   0.0125 },         // gold EM grid: 3.05mm dia, 240um rim, 60um pitch
+            {  4, 1.5,    0.08,    -4,   false,  0.0,    0.0,    0.0    },         // sapphire (160um)
+            {  5, 1.5,    0.05,    -5,   false,  0.0,    0.0,    0.0    },         // diamond (100um)
+            {  6, 0.0,    0.0,     -3,   false,  0.0,    0.0,    0.0,    true },   // gold EM grid, measured: height map from incflo.cryo_grid_file
         };
         constexpr int n_grids = sizeof(grids) / sizeof(grids[0]);
 
         for (int n = 0; n < n_grids; ++n) {
-            if (grids[n].geom_id == geom_id) { grid = grids[n]; return true; }
+            if (grids[n].geom_id == geom_id) {
+                grid = grids[n];
+                if (!grid.from_map) { grid.face_y = grid.half_thick; }
+                return true;
+            }
         }
         return false;
+    }
+
+    // Is (x, y, z_rel) inside the height-mapped solid? z_rel is relative to
+    // the disk centre, the frame the map was built in.
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool in_grid_map (GridMap const& m, amrex::Real x, amrex::Real y,
+                      amrex::Real z_rel) noexcept
+    {
+        int const i = static_cast<int>(std::floor((x - m.x0) / m.pixel));
+        int const k = static_cast<int>(std::floor((z_rel - m.z0) / m.pixel));
+        if (i < 0 || i >= m.nx || k < 0 || k >= m.nz) { return false; }
+        long long const p = i + static_cast<long long>(m.nx) * k;
+        short const yb = m.y_bottom[p];
+        if (yb == m.empty) { return false; }
+        return y >= amrex::Real(yb) * m.unit && y < amrex::Real(m.y_top[p]) * m.unit;
     }
 
     // Stamp one cell of the disk substrate (and its optional +y-face sample
@@ -167,7 +219,9 @@ namespace cryo_grid
         if (radius_sq >= grid.radius * grid.radius) { return false; }   // off the disk footprint
 
         bool in_disk_body;
-        if (amrex::Math::abs(y) >= grid.half_thick) {
+        if (grid.from_map) {
+            in_disk_body = in_grid_map(grid.map, x, y, z_rel);   // measured shape
+        } else if (amrex::Math::abs(y) >= grid.half_thick) {
             in_disk_body = false;
         } else if (!grid.mesh) {
             in_disk_body = true;                           // solid disk
@@ -184,8 +238,8 @@ namespace cryo_grid
 
         // Continuous sample layer coating the +y face (water, cell_type 0). It
         // spans the whole disk footprint, so it floats over the grid holes too.
-        bool const in_sample_layer = sample_layer_on && y >= grid.half_thick &&
-                                     y < grid.half_thick + sample_thickness;
+        bool const in_sample_layer = sample_layer_on && y >= grid.face_y &&
+                                     y < grid.face_y + sample_thickness;
 
         if (!in_disk_body && !in_sample_layer) { return false; }
 

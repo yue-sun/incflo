@@ -180,13 +180,14 @@ bool incflo::cryo_sample_grid (int geometry, Real plunge_disp,
                                Real& face_y, Real& radius, Real& zoff) const
 {
     // Discrete samples sit on the +y face of any disk-family host (gold EM
-    // grid / sapphire / diamond). The geometry table is the single source of
-    // truth for radius and face height; see cryo_grid.H.
+    // grid / sapphire / diamond, analytic or measured). The geometry table
+    // (plus the height map for measured grids) is the single source of truth
+    // for radius and face height; see cryo_grid.H.
     cryo_grid::GridGeom grid;
-    if (!cryo_grid::read_grid_geom(geometry, grid)) { return false; }
+    if (!cryo_grid_geom(geometry, grid)) { return false; }
 
     Real const init_z = (m_cryo_disk_init_z >= Real(0.0)) ? m_cryo_disk_init_z : grid.radius;
-    face_y = grid.half_thick;
+    face_y = grid.face_y;
     radius = grid.radius;
     zoff   = init_z + plunge_disp;
     return true;

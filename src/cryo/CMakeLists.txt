@@ -7,6 +7,7 @@ if (SIM_CRYO)
       cryo.H
       cryo_sample.cpp
       cryo_sample.H
+      cryo_grid.cpp
       cryo_tc_experiment.cpp
       cryo_tc_experiment.H
       cryo_properties.H

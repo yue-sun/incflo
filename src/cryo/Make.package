@@ -1,6 +1,7 @@
 ifeq ($(SIM_CRYO),TRUE)
 	CEXE_sources += cryo.cpp
 	CEXE_sources += cryo_sample.cpp
+	CEXE_sources += cryo_grid.cpp
 	CEXE_sources += cryo_tc_experiment.cpp
     CEXE_headers += cryo.H
 	CEXE_headers += cryo_sample.H
