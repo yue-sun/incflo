@@ -28,8 +28,11 @@ amrex::Real wsam = amrex::Real(0.01); // sample width: 10um
 // trajectory silently, while cryo_plunge_vel sat in the input file doing
 // nothing). Applies to every cryo geometry.
 //   sim_inputs    : piecewise-constant cryo_plunge_vel over cryo_plunge_time
-//   tc_experiment : the measured linear-motor trajectory in cryo_tc_experiment
-enum class PlungeProtocol { sim_inputs, tc_experiment };
+//   tc_experiment     : the measured thermocouple-benchmark trajectory in
+//                       cryo_tc_experiment (deep plunge, for the TC beads)
+//   sample_experiment : the measured sample-plunge trajectory in
+//                       cryo_sample_experiment (for the grids)
+enum class PlungeProtocol { sim_inputs, tc_experiment, sample_experiment };
 PlungeProtocol m_cryo_plunge_protocol = PlungeProtocol::sim_inputs;  // placeholder only: cryo_read_plunge_protocol() aborts unless the key is set
 
 // Wiper/obstacle primitives. The POD definition lives in cryo_stamp.H so the

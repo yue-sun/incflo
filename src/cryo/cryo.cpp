@@ -1,5 +1,6 @@
 #include <incflo.H>
 #include <cryo_tc_experiment.H>
+#include <cryo_sample_experiment.H>
 #include <cryo_grid.H>
 
 using namespace amrex;
@@ -107,16 +108,19 @@ void incflo::cryo_read_plunge_protocol()
     {
         amrex::Abort("incflo.cryo_plunge_protocol is required for a cryo run: "
                      "set it to 'sim_inputs' (piecewise-constant cryo_plunge_vel "
-                     "over cryo_plunge_time) or 'tc_experiment' (the measured "
-                     "linear-motor trajectory in cryo_tc_experiment.cpp)");
+                     "over cryo_plunge_time), 'tc_experiment' (the measured "
+                     "thermocouple-benchmark trajectory in cryo_tc_experiment.cpp) "
+                     "or 'sample_experiment' (the measured sample-plunge trajectory "
+                     "in cryo_sample_experiment.cpp)");
     }
 
     if (protocol == "sim_inputs")      { m_cryo_plunge_protocol = PlungeProtocol::sim_inputs; }
     else if (protocol == "tc_experiment") { m_cryo_plunge_protocol = PlungeProtocol::tc_experiment; }
+    else if (protocol == "sample_experiment") { m_cryo_plunge_protocol = PlungeProtocol::sample_experiment; }
     else
     {
         amrex::Abort("incflo.cryo_plunge_protocol = '" + protocol +
-                     "' is not recognized; use 'sim_inputs' or 'tc_experiment'");
+                     "' is not recognized; use 'sim_inputs', 'tc_experiment' or 'sample_experiment'");
     }
 
     if (m_cryo_plunge_protocol == PlungeProtocol::sim_inputs)
@@ -157,6 +161,16 @@ void incflo::cryo_plunge_state(Real time, Real &velz_plunge, Real &plunge_disp) 
         // projection already absorbs. cryo_tc uses speed > 0 / depth > 0 for
         // descending, hence the sign flips.
         cryo_tc::ThermocoupleMotion const motion = cryo_tc::evaluate_motion(time);
+        velz_plunge = -motion.speed;
+        plunge_disp = -motion.depth;
+        return;
+    }
+
+    if (m_cryo_plunge_protocol == PlungeProtocol::sample_experiment)
+    {
+        // Measured sample-plunge trajectory. Here the speed spline is the exact
+        // derivative of the position spline, so velz_plunge = d(plunge_disp)/dt.
+        cryo_sample_exp::SampleMotion const motion = cryo_sample_exp::evaluate_motion(time);
         velz_plunge = -motion.speed;
         plunge_disp = -motion.depth;
         return;
