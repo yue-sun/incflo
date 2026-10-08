@@ -40,7 +40,7 @@ incflo.thermal_cfl      =   10000.0
 #            INPUT AND OUTPUT           #
 #.......................................#
 amr.plot_per_exact      =   0.1        # Simulated time between plot files [ms]
-amr.check_int           =   1000        # Steps between checkpoint files
+amr.check_int           =   5000        # Steps between checkpoint files
 amr.restart             =   ""          # Checkpoint to restart from
 fab.format              =   NATIVE_32
 
