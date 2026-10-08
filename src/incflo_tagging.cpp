@@ -278,8 +278,8 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     } // mfi
 
 #ifdef AMREX_USE_EB
-    m_refine_cutcells = true;
-    // Refine on cut cells
+    // Refine on cut cells (amr.refine_cutcells, default 1).  This used to be
+    // forced to true here, overriding the input.
     if (m_refine_cutcells)
     {
         amrex::TagCutCells(tags, m_leveldata[levc]->velocity);
@@ -335,5 +335,11 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             });
         } // mfi
     } // if m_refine_particles
+#endif
+
+#ifdef AMREX_USE_EB
+    // incflo.eb_level0_only: levels >= 1 have no EB, so keep them off the wall.
+    // Last, so it also overrides the cut-cell and temperature/speed tags.
+    eb_clear_keepout_tags(levc, tags);
 #endif
 }

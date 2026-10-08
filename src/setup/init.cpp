@@ -770,18 +770,6 @@ incflo::InitialRedistribution ()
                                               AMREX_D_DECL(fcx, fcy, fcz), ccc,
                                               bc_T, geom[lev], m_redistribution_type);
                 }
- #ifdef INCFLO_SIM_CRYO
-                if (m_sim_cryo) {
-                    ncomp = 1;
-                    // TODO: change the bc
-                    auto const& bc_cell_type = get_density_bcrec_device_ptr();
-                    ApplyInitialRedistribution( bx,ncomp,
-                                              ld.cell_type.array(mfi), ld.cell_type_o.array(mfi),
-                                              flag, AMREX_D_DECL(apx, apy, apz), vfrac,
-                                              AMREX_D_DECL(fcx, fcy, fcz), ccc,
-                                              bc_cell_type, geom[lev], m_redistribution_type);
-                }
- #endif
             }
         }
 

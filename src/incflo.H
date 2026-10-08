@@ -12,6 +12,7 @@
 
 #ifdef AMREX_USE_EB
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_EB2.H>
 #endif
 
 #ifdef INCFLO_USE_PARTICLES
@@ -578,6 +579,20 @@ private:
     EBFlow_t m_eb_flow;
 
     bool m_write_geom_chk = false;
+
+    // EB on level 0 only (incflo.eb_level0_only).  The EB index space is
+    // normally built at the finest level over the whole domain, whether or
+    // not that level ever reaches the wall -- for a far-away wall (the cryo
+    // cup) that is terabytes at fine resolution.  With this option the wall
+    // geometry exists on level 0 only and levels >= 1 use an all-regular index
+    // space, which is valid only if no level >= 1 ever touches the wall: tags
+    // on level 0 within incflo.eb_refine_margin level-0 cells of any cut or
+    // covered cell are cleared, and every new level-1 BoxArray is checked.
+    bool m_eb_level0_only = false;
+    int  m_eb_refine_margin = 8;
+    amrex::EB2::IndexSpace const* m_eb_wall_is = nullptr;   // the real geometry (level 0)
+    amrex::EB2::IndexSpace const* m_eb_fine_is = nullptr;   // all regular (levels >= 1)
+    amrex::iMultiFab m_eb_keepout;                          // level 0: 1 = no refinement here
 #else
     // If using Godunov with no EB, default to PPM
     bool m_godunov_ppm         = true;
@@ -1078,6 +1093,12 @@ private:
 
 #ifdef AMREX_USE_EB
     void MakeEBGeometry ();
+    // EB factory for level lev on (ba, dm), from the index space that level uses
+    [[nodiscard]] std::unique_ptr<amrex::EBFArrayBoxFactory>
+    make_eb_factory (int lev, amrex::BoxArray const& ba, amrex::DistributionMapping const& dm) const;
+    void eb_build_keepout ();                                    // m_eb_keepout from level-0 EB flags
+    void eb_clear_keepout_tags (int levc, amrex::TagBoxArray& tags);
+    void eb_check_keepout (int lev, amrex::BoxArray const& ba) const;   // abort if lev >= 1 meets the wall
     void make_eb_annulus ();
     void make_eb_box ();
     void make_eb_cylinder ();

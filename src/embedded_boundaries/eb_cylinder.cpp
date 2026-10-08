@@ -57,8 +57,11 @@ void incflo::make_eb_cylinder()
     // Generate GeometryShop
     auto gshop = EB2::makeShop(my_cyl_rot);
 
-    // Build index space
+    // Build index space: at the finest level, or at level 0 only with
+    // incflo.eb_level0_only (MakeEBGeometry then adds an all-regular index
+    // space for the finer levels).
     int max_level_here = 0;
     int max_coarsening_level = 100;
-    EB2::Build(gshop, geom.back(), max_level_here, max_level_here + max_coarsening_level);
+    Geometry const& eb_geom = m_eb_level0_only ? geom[0] : geom.back();
+    EB2::Build(gshop, eb_geom, max_level_here, max_level_here + max_coarsening_level);
 }

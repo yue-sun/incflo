@@ -273,11 +273,7 @@ void incflo::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& new_gr
     SetDistributionMap(lev, new_dmap);
 
 #ifdef AMREX_USE_EB
-    m_factory[lev] = makeEBFabFactory(geom[lev], grids[lev], dmap[lev],
-                                      {nghost_eb_basic(),
-                                       nghost_eb_volume(),
-                                       nghost_eb_full()},
-                                       EBSupport::full);
+    m_factory[lev] = make_eb_factory(lev, grids[lev], dmap[lev]);
 #else
     m_factory[lev] = std::make_unique<FArrayBoxFactory>();
 #endif
