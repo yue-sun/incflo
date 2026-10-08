@@ -1,0 +1,165 @@
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#   PRODUCTION RUN IN THE LE CUP (EB)   #
+#.......................................#
+# Same physics, grid, samples and plunge protocol as
+# cryo_no_eb_3d/inputs.cryo_prod_run_L4, but the ethane is held in the LE cup:
+#   * side wall = EB cylinder, 2.0" ID (radius 25.4 mm), axis z, no-slip and
+#     adiabatic (incflo's EB defaults: zero velocity, homogeneous Neumann T);
+#   * floor     = the box bottom (zlo, no-slip);
+#   * surface   = the box top z = 0 (zhi, pressure outflow), as before.
+# The cryo stamping measures x, y from the box centre and z down from the box
+# top, so the box must stay centred in x, y with prob_hi z = 0.
+#
+# Base grid is 1 mm (was 0.25 mm) with one extra level, so the finest cell is
+# unchanged: 1 / (4*4*4*4) mm = 3.906 um.  Level 0 is 56 x 56 x 16 = 50k cells
+# (the old 8 mm box at 0.25 mm was 32^3 = 33k).
+#
+# TODO before production:
+#   [ ] CUP DEPTH: prob_lo z / n_cell z below are a placeholder (16 mm).  The
+#       domain only has to be deeper than the plunge reaches plus a margin:
+#       the floor started to feel the flow ~1 mm before contact in
+#       prod_L4_2gpu_1006_234126, and the protocol bottoms out at 12.2 mm
+#       (t ~ 22 ms).  If the LE cup is >= 16 mm deep, keep 16; if shallower,
+#       use the real depth.  n_cell z must stay a multiple of blocking_factor
+#       (8), i.e. the depth a multiple of 8 mm at dx0 = 1 mm -- otherwise set
+#       amr.blocking_factor = 4 8 8 8 8 (multiples of 4 mm).
+#   [ ] STOP TIME: 10 ms as before; with a 16 mm box the whole measured
+#       trajectory (42 ms) fits.  See results/diag/plot_plunge_protocol.py.
+#   [ ] Calibrate first (MAX_STEP=…, no I/O) and check that no fine grids
+#       form along the cup wall -- see the note under AMR below.
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            SIMULATION STOP            #
+#.......................................#
+stop_time               =   10.0       # Max (simulated) time to evolve [ms]  -- TODO
+max_step                =  -1           # Max number of time steps
+steady_state            =   0           # Steady-state solver?
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#         TIME STEP COMPUTATION         #
+#.......................................#
+incflo.fixed_dt         =   -1        # Use this constant dt if > 0
+incflo.cfl              =   0.5        # CFL factor
+incflo.thermal_cfl      =   10000.0
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#            INPUT AND OUTPUT           #
+#.......................................#
+amr.plot_per_exact      =   0.1        # Simulated time between plot files [ms]
+amr.check_int           =   1000        # Steps between checkpoint files (was 5000: lost ~4 h of a run)
+amr.restart             =   ""          # Checkpoint to restart from
+fab.format              =   NATIVE_32
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨
+#               PHYSICS                 #
+#.......................................#
+incflo.advection_type   =   "Godunov"      # Options: Godunov, MOL, BDS
+incflo.diffusion_type   =   2          # 0: Explicit, 1: Crank-Nicolson, 2: Implicit
+
+incflo.gravity          =   0.  0.  0.  # Gravitational force (3D)
+incflo.ro_0             =   1.          # Reference density
+
+incflo.fluid_model      =   "newtonian" # Fluid model (rheology)
+incflo.mu               =   0.001966    # Dynamic viscosity coefficient
+
+incflo.use_temperature  =   true
+incflo.mu_T             =   0.000244    # For now using thermal diffusivity, but it should be thermal conductivity
+incflo.cp               =   1.0         # Set to 1 for now because the temperature update is non-conservative
+incflo.temp_iface_smooth_iters  =   4    # thin gold mesh bars: soften k(T)/cp(T) jump at metal/ethane interface; stabilizes implicit T-diffusion MLMG
+incflo.temp_iface_smooth_weight =   0.55 # Blend factor per pass (0..1), lower is less smoothing
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              CRYO PLUNGING            #
+#.......................................#
+incflo.probtype         =   3000
+incflo.sim_cryo         =   true
+incflo.cryo_geometry    =   6           # 6 = gold EM grid, measured (height map from incflo.cryo_grid_file)
+incflo.cryo_grid_file   =   "../../data/grids/grid_Au_carbon_realAu300QuantifoilR14_v260930.hmap"
+incflo.cryo_sample_layer = 0
+incflo.cryo_sample_place = "../../data/samples/cells.samples_mixed3"
+
+incflo.dt_min           =   1e-3        # NB: only a floor when the CFL number is ~0, not a general minimum
+incflo.cryo_plunge_protocol = tc_experiment
+incflo.cryo_temp_entry  =   273.15
+incflo.cryo_temp_eth    =   90.0
+
+incflo.cryo_temp_stats_file = temperature_stats_prod_cup_eb.dat
+incflo.cryo_temp_stats_int  = 1
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#        ADAPTIVE MESH REFINEMENT       #
+#.......................................#
+amr.n_cell              =   56 56 16    # 1 mm base cells over 56 x 56 x 16 mm  -- z: TODO (cup depth)
+amr.max_level           =   4           # dx: 1, 0.25, 0.0625, 0.015625, 0.00390625 mm
+amr.ref_ratio           =   4 4 4 4
+amr.max_grid_size       =   32 32 32 64 64  # per LEVEL; 64 at the fine levels keeps the GPU fed
+amr.blocking_factor     =   8           # Blocking factor for grids
+amr.grid_eff            =   0.9
+amr.n_error_buf         =   2 2 2 2 2
+
+# Tagging: entry n is applied on level n to make level n+1.  The new level 0
+# (1 mm) reuses the old level-0 criteria, so level 1 (0.25 mm) covers at least
+# what the old 0.25 mm base level refined; levels 1-3 are the old levels 0-2,
+# unchanged.  The difference criteria are not divided by dx, so on 1 mm cells
+# they fire a bit more readily -- a slightly larger level 1, which is cheap.
+#
+# Check in the calibration run: if covered cells outside the cup hold T = 0 or
+# u = 0 next to 90 K / moving ethane, gradtemperr would tag the whole cup wall
+# on every level (the tagging in incflo_tagging.cpp does not skip covered
+# cells).  The far field is quiescent, so look at the level-1 grid summary: it
+# should be a few % of the domain, not a ring at r = 25.4 mm.
+incflo.tag_region       =   true
+incflo.tag_region_time  =   0.03
+incflo.tag_region_lo    =   -1.0  -1.0  -1.0   # widened from +-0.5 so 1 mm cell centres fall inside
+incflo.tag_region_hi    =    1.0   1.0   0.0
+amr.regrid_int          =   2
+incflo.tag_cell_type    =   true
+incflo.temperr          =   155. 155. 120. 1.e9
+incflo.gradtemperr      =   20.  20.  10.  5.
+incflo.gradspeederr     =   0.9  0.9  0.5  1.e9
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              GEOMETRY                 #
+#.......................................#
+geometry.prob_lo        =   -28.0  -28.0  -16.0  # z: TODO (cup depth); keep prob_hi z = 0
+geometry.prob_hi        =    28.0   28.0    0.0
+geometry.is_periodic    =   0   0   0   # Periodicity x y z (0/1)
+
+# LE cup side wall: 2.0" ID.  Covered cells outside it are skipped by the
+# solvers, so the box faces at x, y = +-28 never see fluid.
+incflo.geometry         =   "cylinder"
+cylinder.internal_flow  =   true
+cylinder.radius         =   25.4
+cylinder.direction      =   2
+cylinder.center         =   0.0  0.0  0.0
+
+# Boundary conditions
+xlo.type                =   "nsw"       # x/y faces lie outside the cup (covered)
+xlo.velocity            =   0.  0.  0.
+xhi.type                =   "nsw"
+xhi.velocity            =   0.  0.  0.
+ylo.type                =   "nsw"
+ylo.velocity            =   0.  0.  0.
+yhi.type                =   "nsw"
+yhi.velocity            =   0.  0.  0.
+zlo.type                =   "nsw"       # cup floor
+zlo.velocity            =   0.  0.  0.
+zlo.tracer              =   1.
+zhi.type                =   "pi"        # ethane surface
+zhi.pressure            =   0.0
+
+#¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
+#              VERBOSITY                #
+#.......................................#
+amr.verbose             =   2
+incflo.verbose          =   2          # incflo itself
+mac_proj.verbose        =   0          # MAC Projector
+nodal_proj.verbose      =   0          # Nodal Projector
+nodal_proj.mg_rtol      =   1e-9
+
+scalar_diffusion.verbose  =   0         # Scalar Diffusion
+tensor_diffusion.verbose  =   0         # Tensor Diffusion
+
+incflo.initial_iterations =   0
+
+amr.plotVariables       =   velx vely velz magvel vort density tracer temperature cell_type p cp thermal_conductivity
