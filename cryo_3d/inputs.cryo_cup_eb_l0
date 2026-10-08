@@ -104,6 +104,7 @@ incflo.tag_region_time  =   0.03
 incflo.tag_region_lo    =   -0.5  -0.5  -0.5   # as the non-EB runs: 0.5 mm cell centres (+-0.25) fall inside;
 incflo.tag_region_hi    =    0.5   0.5   0.0   # +-1 mm made 8x the finest cells at startup (74 M vs 10 M)
 amr.regrid_int          =   2
+amr.max_grid_iterations =   1           # startup re-tag passes (default 4); the cryo regrid follows anyway
 incflo.tag_cell_type    =   true
 incflo.temperr          =   155. 155. 155. 120. 120. 1.e9 1.e9
 incflo.gradtemperr      =   20.  20.  10.  10.  5.   5.   5.
@@ -148,7 +149,7 @@ zhi.pressure            =   0.0
 amr.verbose             =   2
 incflo.verbose          =   2          # incflo itself
 mac_proj.verbose        =   0          # MAC Projector
-nodal_proj.verbose      =   0          # Nodal Projector
+nodal_proj.verbose      =   1          # Nodal Projector: show MLMG iterations (initial projection is silent otherwise)
 nodal_proj.mg_rtol      =   1e-9
 
 scalar_diffusion.verbose  =   0         # Scalar Diffusion
