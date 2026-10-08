@@ -1096,8 +1096,13 @@ private:
     // EB factory for level lev on (ba, dm), from the index space that level uses
     [[nodiscard]] std::unique_ptr<amrex::EBFArrayBoxFactory>
     make_eb_factory (int lev, amrex::BoxArray const& ba, amrex::DistributionMapping const& dm) const;
+    // NOTE: public only because CUDA forbids an extended __device__ lambda
+    // inside a private or protected member function, and the kernels in these
+    // bodies are device lambdas. Not part of the intended interface.
+public:
     void eb_build_keepout ();                                    // m_eb_keepout from level-0 EB flags
     void eb_clear_keepout_tags (int levc, amrex::TagBoxArray& tags);
+private:
     void eb_check_keepout (int lev, amrex::BoxArray const& ba) const;   // abort if lev >= 1 meets the wall
     void make_eb_annulus ();
     void make_eb_box ();
