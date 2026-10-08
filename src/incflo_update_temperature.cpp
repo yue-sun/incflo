@@ -246,10 +246,23 @@ void incflo::write_temperature_stats()
             Array4<Real const> const &T = ld.temperature.const_array(mfi);
             Array4<int const> const &ct = ld.cell_type.const_array(mfi);
             Array4<int const> const &msk = level_mask.const_array(mfi);
+#ifdef AMREX_USE_EB
+            // Cells outside the EB wall (e.g. outside the cup) hold T = 0 but keep
+            // the ethane cell_type, so skip them; cut cells count only their fluid
+            // volume.
+            Array4<EBCellFlag const> const &flag =
+                EBFactory(lev).getMultiEBCellFlagFab().const_array(mfi);
+            Array4<Real const> const &vfrac = EBFactory(lev).getVolFrac().const_array(mfi);
+#endif
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                         {
                 if (msk(i,j,k) == 0) return;          // covered by finer level
+                Real vol = cell_vol;
+#ifdef AMREX_USE_EB
+                if (flag(i,j,k).isCovered()) return;  // outside the EB wall
+                vol *= vfrac(i,j,k);
+#endif
                 int c = ct(i,j,k), idx;
                 if (c < 0) {
                     if (c < -N_MAT) return;            // unknown negative code
@@ -260,8 +273,8 @@ void incflo::write_temperature_stats()
                     return;                            // c==0 / out of range
                 }
                 Real t = T(i,j,k);
-                Gpu::Atomic::Add(&p_sumTvol[idx], t * cell_vol);
-                Gpu::Atomic::Add(&p_sumvol [idx], cell_vol);
+                Gpu::Atomic::Add(&p_sumTvol[idx], t * vol);
+                Gpu::Atomic::Add(&p_sumvol [idx], vol);
                 Gpu::Atomic::Add(&p_ncell  [idx], Real(1.0));
                 Gpu::Atomic::Min(&p_tmin   [idx], t);
                 Gpu::Atomic::Max(&p_tmax   [idx], t); });
