@@ -14,8 +14,17 @@ DEBUG      = FALSE
 
 COMP	   = gnu
 
-USE_MPI    = FALSE
-USE_OMP    = TRUE
+# Build switch: MPI=TRUE/FALSE, OMP=TRUE/FALSE. Default is MPI only (one OpenMP
+# thread per rank), which runs faster than OpenMP on both the Mac and the server.
+#   MPI:                  make
+#   MPI+OpenMP:           make OMP=TRUE
+#   OpenMP only (old):    make MPI=FALSE OMP=TRUE
+# No CUDA: init_rfb_geometry reads m_rfb_fibers (host memory) inside ParallelFor.
+MPI = TRUE
+OMP = FALSE
+
+USE_MPI    = $(MPI)
+USE_OMP    = $(OMP)
 USE_CUDA   = FALSE
 
 USE_HYPRE = FALSE
