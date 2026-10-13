@@ -62,3 +62,6 @@ rfb*/tmp_build_dir/
 rfb*/Backtrace.*
 rfb*/*plt*/
 rfb*/chk*/
+# Simulation output (run dirs, plotfiles, checkpoints, runtime diagnostics)
+rfb_no_eb_3d/out_*/
+Backtrace.*
