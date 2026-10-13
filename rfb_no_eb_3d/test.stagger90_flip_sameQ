@@ -1,9 +1,9 @@
-# SAME-FLOW-RATE pair (2026-10-12). 90 deg dp lowered so its converged Q matches the 45 deg at 2.25 Pa.
+# SAME-FLOW-RATE pair. 90 deg dp: 1.453 Pa (from the conv studies) gave Q 6.6% high; rescaled to 1.362 Pa.
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            SIMULATION STOP            #
 #.......................................#
 stop_time               =   0.5         # Max (simulated) time to evolve
-max_step                =   2000        # Max number of time steps (cap; see how far the residual falls)
+max_step                =   5000        # Max number of time steps (cap; see how far the residual falls)
 steady_state            =   1           # Steady-state solver?
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
@@ -16,8 +16,8 @@ incflo.steady_state_tol =   1.e-4       # Steady-state error tolerance (was 1e-2
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
 #.......................................#
-amr.plot_int            =   100            # Steps between plot files (Q(t) for a convergence check)
-amr.check_int           =   1000           # Steps between checkpoint files
+amr.plot_int            =   500            # Steps between plot files (Q(t) for a convergence check)
+amr.check_int           =   2500           # Steps between checkpoint files
 amr.restart             =   ""          # Checkpoint to restart from
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
@@ -80,7 +80,7 @@ geometry.is_periodic    =   0       0       0       # Periodicity x y z (0/1)
 #       the flow rate Q will DIFFER between geometries -- report Q and dp beside any
 #       current, or a throughput difference will read as a geometry effect.
 xlo.type                =   "pi"
-xlo.pressure            =   1.453       # 2.25 * Q45_inf/Q90_inf = 2.25 * 0.005492/0.008505 -> equal Q
+xlo.pressure            =   1.362       # 1.453 * Q45/Q90 = 1.453 * 5.526/5.893 uL/min (first sameQ pair, 2026-10-13)
 xhi.type                =   "po"
 xhi.pressure            =   0.
 

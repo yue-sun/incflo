@@ -3,7 +3,7 @@
 #            SIMULATION STOP            #
 #.......................................#
 stop_time               =   0.5         # Max (simulated) time to evolve
-max_step                =   2000        # Max number of time steps (cap; see how far the residual falls)
+max_step                =   5000        # Max number of time steps (cap; see how far the residual falls)
 steady_state            =   1           # Steady-state solver?
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
@@ -16,8 +16,8 @@ incflo.steady_state_tol =   1.e-4       # Steady-state error tolerance (was 1e-2
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #            INPUT AND OUTPUT           #
 #.......................................#
-amr.plot_int            =   100            # Steps between plot files (Q(t) for a convergence check)
-amr.check_int           =   1000           # Steps between checkpoint files
+amr.plot_int            =   500            # Steps between plot files (Q(t) for a convergence check)
+amr.check_int           =   2500           # Steps between checkpoint files
 amr.restart             =   ""          # Checkpoint to restart from
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
