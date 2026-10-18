@@ -23,6 +23,7 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #endif
 
     static bool tag_region;
+    static bool tag_region_overlap = false;
 
     if (first) {
         first = false;
@@ -48,6 +49,10 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
         pp.queryarr("tag_region_lo", tag_region_lo);
         pp.queryarr("tag_region_hi", tag_region_hi);
+        // false (default): tag cells whose centre is inside the box.
+        // true: tag cells that overlap the box at all, so the box can be thinner
+        // than a coarse cell (e.g. sized to a 19 um grid) and still be seen on level 0.
+        pp.query("tag_region_overlap", tag_region_overlap);
 
 #ifdef INCFLO_SIM_CRYO
         pp.query("tag_region_time", tag_region_time);
@@ -152,16 +157,27 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             Real xhi = tag_region_hi[0];
             Real yhi = tag_region_hi[1];
             auto const& problo = geom[levc].ProbLoArray();
+            bool const overlap = tag_region_overlap;
 
 #if (AMREX_SPACEDIM == 2)
+            Real const hx = overlap ? Real(0.5)*l_dx : Real(0.0);
+            Real const hy = overlap ? Real(0.5)*l_dy : Real(0.0);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                  Real x = problo[0] + (i+0.5)*l_dx;
                  Real y = problo[1] + (j+0.5)*l_dy;
 
+                 if (overlap) {
+                     // Tag if any part of the cell is inside the box. Strict, so
+                     // a cell that only touches a box face is not tagged.
+                     if (x + hx > xlo && x - hx < xhi && y + hy > ylo && y - hy < yhi)
+                     {
+                        tag(i,j,k) = tagval;
+                     }
+                 }
                  // Tag if we are inside the specified box
-                 if (x >= xlo && x <= xhi && y >= ylo && y <= yhi)
+                 else if (x >= xlo && x <= xhi && y >= ylo && y <= yhi)
                  {
                     tag(i,j,k) = tagval;
                  }
@@ -170,6 +186,9 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 #else
             Real zlo = tag_region_lo[2];
             Real zhi = tag_region_hi[2];
+            Real const hx = overlap ? Real(0.5)*l_dx : Real(0.0);
+            Real const hy = overlap ? Real(0.5)*l_dy : Real(0.0);
+            Real const hz = overlap ? Real(0.5)*l_dz : Real(0.0);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -177,8 +196,18 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                  Real y = problo[1] + Real(j+0.5)*l_dy;
                  Real z = problo[2] + Real(k+0.5)*l_dz;
 
+                 if (overlap) {
+                     // Tag if any part of the cell is inside the box. Strict, so
+                     // a cell that only touches a box face is not tagged.
+                     if (x + hx > xlo && x - hx < xhi &&
+                         y + hy > ylo && y - hy < yhi &&
+                         z + hz > zlo && z - hz < zhi)
+                     {
+                        tag(i,j,k) = tagval;
+                     }
+                 }
                  // Tag if we are inside the specified box
-                 if (x >= xlo && x <= xhi && y >= ylo && y <= yhi && z >= zlo && z <= zhi)
+                 else if (x >= xlo && x <= xhi && y >= ylo && y <= yhi && z >= zlo && z <= zhi)
                  {
                     tag(i,j,k) = tagval;
                  }
