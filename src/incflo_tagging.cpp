@@ -17,7 +17,7 @@ void incflo::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
 #ifdef INCFLO_SIM_CRYO
     static Real tag_region_time = 0.0;
-    bool tag_cell_type = false;
+    static bool tag_cell_type = false;
     static Vector<Real> temperr_v, gradtemperr_v;
     static Vector<Real> speederr_v, gradspeederr_v;
 #endif
