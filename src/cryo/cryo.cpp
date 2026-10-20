@@ -39,6 +39,7 @@ void incflo::cryo_update(Real time)
     cryo_stamp::Solid const* solids_p = m_cryo_solids_d.dataPtr();
     int const n_solids = m_cryo_n_solids;
     Real const temp_entry = m_cryo_temp_entry;
+    bool const temp_top_pin = !m_cryo_temp_top_dirichlet;
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -66,6 +67,7 @@ void incflo::cryo_update(Real time)
                             Real &vely = vel(i, j, k, 1);
                             Real &velz = vel(i, j, k, 2);
                             Real &temperature_ijk = temperature(i, j, k);
+                            int const cell_type_old = cell_type_ijk;
 
                             // Set geometry and velocity
                             cryo_stamp::set_geom_velocity(x, y, z, velx, vely, velz,
@@ -88,12 +90,128 @@ void incflo::cryo_update(Real time)
                             // Set thermal properties (no-op hook) and the top
                             // temperature B.C.
                             cryo_stamp::set_thermal(x, y, z, cell_type_ijk, time);
-                            cryo_stamp::set_temp_top_bc(z, temperature_ijk, cell_type_ijk,
-                                                        dx, probhi, temp_entry);
+                            if (temp_top_pin)
+                            {
+                                cryo_stamp::set_temp_top_bc(z, temperature_ijk, cell_type_ijk,
+                                                            dx, probhi, temp_entry);
+                            }
+                            // Solid entering through the top face this step arrives at T_entry
+                            else if (z >= probhi[2] - dx[2] && cell_type_old == -1 && cell_type_ijk != -1)
+                            {
+                                temperature_ijk = temp_entry;
+                            }
                         });
         }
     }
+
+    // Covered cells take the finer average, so only keep the finest level's pin
+    if (m_use_temperature && temp_top_pin)
+    {
+        for (int lev = finest_level - 1; lev >= 0; --lev)
+        {
+#ifdef AMREX_USE_EB
+            amrex::EB_average_down(m_leveldata[lev + 1]->temperature, m_leveldata[lev]->temperature,
+                                   0, 1, refRatio(lev));
+#else
+            amrex::average_down(m_leveldata[lev + 1]->temperature, m_leveldata[lev]->temperature,
+                                0, 1, refRatio(lev));
 #endif
+        }
+    }
+#endif
+}
+
+std::unique_ptr<iMultiFab> incflo::make_cryo_temperature_BC_MF (int lev)
+{
+    // nghost_state() ghosts: HydroBC::getBC returns int_dir where the stencil reaches past the BC array
+    auto BC_MF = std::make_unique<iMultiFab>(grids[lev], dmap[lev], 1, nghost_state());
+    *BC_MF = 0;
+    Box const& domain = geom[lev].Domain();
+    int const ktop = domain.bigEnd(2);
+    BCRec const* const bcr = m_bcrec_temperature_d.data();
+    iMultiFab const& ct_mf = m_leveldata[lev]->cell_type;
+
+    for (MFIter mfi(*BC_MF); mfi.isValid(); ++mfi)
+    {
+        Box const gbx = mfi.growntilebox();
+        Array4<int> const& bc = BC_MF->array(mfi);
+        Array4<int const> const& ct = ct_mf.const_array(mfi);
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
+        {
+            Box const blo = gbx & adjCellLo(domain, dir);
+            Box const bhi = gbx & adjCellHi(domain, dir);
+            if (blo.ok()) {
+                ParallelFor(blo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    bc(i,j,k) = bcr[0].lo(dir);
+                });
+            }
+            if (bhi.ok()) {
+                ParallelFor(bhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    bc(i,j,k) = bcr[0].hi(dir);
+                    if (dir == 2 && ct.contains(i,j,ktop) && ct(i,j,ktop) != -1) { bc(i,j,k) = BCType::ext_dir; }
+                });
+            }
+        }
+    }
+    return BC_MF;
+}
+
+Vector<MultiFab> incflo::make_cryo_temperature_robinBC_MFs (int lev)
+{
+    // a T + b dT/dn = f on zhi: Dirichlet T_entry above solid, zero flux above ethane
+    Vector<MultiFab> robin(3);
+    for (auto& mf : robin) { mf.define(grids[lev], dmap[lev], 1, 1); }
+    robin[0].setVal(0.0);
+    robin[1].setVal(1.0);
+    robin[2].setVal(0.0);
+
+    Box const top = adjCellHi(geom[lev].Domain(), 2);
+    int const ktop = geom[lev].Domain().bigEnd(2);
+    Real const temp_entry = m_cryo_temp_entry;
+    iMultiFab const& ct_mf = m_leveldata[lev]->cell_type;
+
+    for (MFIter mfi(robin[0]); mfi.isValid(); ++mfi)
+    {
+        Box const bx = amrex::grow(mfi.validbox(), 1) & top;
+        if (!bx.ok()) { continue; }
+        Array4<Real> const& a = robin[0].array(mfi);
+        Array4<Real> const& b = robin[1].array(mfi);
+        Array4<Real> const& f = robin[2].array(mfi);
+        Array4<int const> const& ct = ct_mf.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (ct.contains(i,j,ktop) && ct(i,j,ktop) != -1) {
+                a(i,j,k) = Real(1.0);
+                b(i,j,k) = Real(0.0);
+                f(i,j,k) = temp_entry;
+            }
+        });
+    }
+    return robin;
+}
+
+void incflo::cryo_set_temperature_top_ghost (int lev, MultiFab& temperature)
+{
+    iMultiFab const& ct_mf = m_leveldata[lev]->cell_type;
+    if (!amrex::isMFIterSafe(temperature, ct_mf)) { return; }  // regrid fills into a new BoxArray
+
+    int const ktop = geom[lev].Domain().bigEnd(2);
+    Real const temp_entry = m_cryo_temp_entry;
+
+    for (MFIter mfi(temperature); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.fabbox();
+        bx.setSmall(2, ktop + 1);
+        if (!bx.ok()) { continue; }
+        Array4<Real> const& T = temperature.array(mfi);
+        Array4<int const> const& ct = ct_mf.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (ct.contains(i,j,ktop) && ct(i,j,ktop) != -1) { T(i,j,k) = temp_entry; }
+        });
+    }
 }
 
 void incflo::cryo_read_plunge_protocol()

@@ -617,6 +617,11 @@ incflo::compute_convective_term (Vector<MultiFab*> const& conv_u,
             Abort("Temperature equation with mixed BC not completed yet");
             tempBC_MF = make_BC_MF(lev, m_bcrec_temperature_d, "temperature");
         }
+#ifdef INCFLO_SIM_CRYO
+        if (m_use_temperature && cryo_temp_top_dirichlet()) {
+            tempBC_MF = make_cryo_temperature_BC_MF(lev);
+        }
+#endif
 
         // ************************************************************************
         // Compute advective fluxes

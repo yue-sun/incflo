@@ -69,8 +69,12 @@ incflo::compute_laps_T(Vector<MultiFab      *> const& laps,
                        Vector<MultiFab const*> const& scalar,
                        Vector<MultiFab const*> const& eta)
 {
+    bool cryo_temp_top = false;
+#ifdef INCFLO_SIM_CRYO
+    cryo_temp_top = cryo_temp_top_dirichlet();
+#endif
     get_diffusion_scalar_op()->compute_laps(laps, scalar, eta,
-                                            get_temperature_bcrec());
+                                            get_temperature_bcrec(), cryo_temp_top);
 }
 
 void
@@ -90,10 +94,14 @@ incflo::diffuse_temperature(Vector<MultiFab      *> const& temperature,
                             Vector<MultiFab const*> const& eta,
                             Real dt_diff)
 {
+    bool cryo_temp_top = false;
+#ifdef INCFLO_SIM_CRYO
+    cryo_temp_top = cryo_temp_top_dirichlet();
+#endif
     get_diffusion_scalar_op()->diffuse_scalar(temperature, rhocp, eta,
                                               get_temperature_eb(),
                                               {1} /* use rhocp */,
-                                              get_temperature_bcrec(), dt_diff);
+                                              get_temperature_bcrec(), dt_diff, cryo_temp_top);
 }
 
 void

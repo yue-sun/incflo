@@ -21,7 +21,8 @@ public:
                          amrex::Vector<amrex::MultiFab*> const& eb_dirichlet,
                          amrex::Vector<int> const& use_chi,
                          amrex::Vector<amrex::BCRec> bcrec,
-                         amrex::Real dt);
+                         amrex::Real dt,
+                         bool cryo_temp_top = false);
 
     void diffuse_vel_components (
                          amrex::Vector<amrex::MultiFab*> const& vel,
@@ -32,7 +33,8 @@ public:
     void compute_laps (amrex::Vector<amrex::MultiFab*> const& laps,
                        amrex::Vector<amrex::MultiFab const*> const& a_scalar,
                        amrex::Vector<amrex::MultiFab const*> const& eta,
-                       amrex::Vector<amrex::BCRec> bcrec);
+                       amrex::Vector<amrex::BCRec> bcrec,
+                       bool cryo_temp_top = false);
 
     void compute_divtau (amrex::Vector<amrex::MultiFab*> const& a_divtau,
                          amrex::Vector<amrex::MultiFab const*> const& a_vel,

@@ -35,5 +35,8 @@ void incflo::fillphysbc_temperature (int lev, Real time, MultiFab& temperature, 
             (geom[lev], get_temperature_bcrec(),
              IncfloTempFill{m_probtype, m_bc_temperature, m_bc_velocity});
         physbc.FillBoundary(temperature, 0, 1, IntVect(ng), time, 0);
+#ifdef INCFLO_SIM_CRYO
+        if (ng > 0 && cryo_temp_top_dirichlet()) { cryo_set_temperature_top_ghost(lev, temperature); }
+#endif
     }
 }

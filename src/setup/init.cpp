@@ -186,6 +186,16 @@ void incflo::ReadParameters ()
             // Plunging protocol: which kinematics drive every cryo geometry.
             cryo_read_plunge_protocol();
             pp.query("cryo_temp_entry", m_cryo_temp_entry);
+            std::string temp_top_bc = "pin";
+            pp.query("cryo_temp_top_bc", temp_top_bc);
+            if (temp_top_bc == "dirichlet") {
+                m_cryo_temp_top_dirichlet = true;
+                if (m_advection_type != "Godunov" || m_diff_type != DiffusionType::Implicit) {
+                    amrex::Abort("incflo.cryo_temp_top_bc = dirichlet needs advection_type = Godunov and diffusion_type = 2");
+                }
+            } else if (temp_top_bc != "pin") {
+                amrex::Abort("incflo.cryo_temp_top_bc must be 'pin' or 'dirichlet'");
+            }
             pp.query("cryo_temp_eth", m_cryo_temp_eth);
             pp.query("cryo_disk_init_z", m_cryo_disk_init_z);
             pp.query("cryo_temp_stats_file", m_temp_stats_file);

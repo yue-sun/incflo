@@ -9,6 +9,19 @@
 
 using namespace amrex;
 
+namespace {
+// zhi becomes Robin for the cryo entry-temperature BC (see incflo::make_cryo_temperature_robinBC_MFs)
+Array<LinOpBCType,AMREX_SPACEDIM> cryo_top_robin (Array<LinOpBCType,AMREX_SPACEDIM> bc, bool cryo_temp_top)
+{
+#if (AMREX_SPACEDIM == 3)
+    if (cryo_temp_top) { bc[2] = LinOpBCType::Robin; }
+#else
+    amrex::ignore_unused(cryo_temp_top);
+#endif
+    return bc;
+}
+}
+
 DiffusionScalarOp::DiffusionScalarOp (incflo* a_incflo)
     : m_incflo(a_incflo)
 {
@@ -135,7 +148,8 @@ DiffusionScalarOp::diffuse_scalar (Vector<MultiFab*> const& a_scalar,
                                    Vector<MultiFab*> const& eb_dirichlet,
                                    amrex::Vector<int> const& use_chi,
                                    amrex::Vector<amrex::BCRec> bcrec,
-                                   Real dt)
+                                   Real dt,
+                                   bool cryo_temp_top)
 {
     //
     // Solves
@@ -206,8 +220,8 @@ DiffusionScalarOp::diffuse_scalar (Vector<MultiFab*> const& a_scalar,
         {
             m_eb_scal_solve_op->setDomainBC(m_incflo->get_diffuse_scalar_bc(Orientation::low,
                                                                             bcrec[0].lo()),
-                                            m_incflo->get_diffuse_scalar_bc(Orientation::high,
-                                                                            bcrec[0].hi()));
+                                            cryo_top_robin(m_incflo->get_diffuse_scalar_bc(Orientation::high,
+                                                                            bcrec[0].hi()), cryo_temp_top));
 
             if ( m_incflo->m_has_mixedBC && comp>0 ) {
                 // Must reset scalars (and Acoef, done below) to reuse solver with Robin BC
@@ -241,8 +255,8 @@ DiffusionScalarOp::diffuse_scalar (Vector<MultiFab*> const& a_scalar,
             amrex::ignore_unused(eb_dirichlet);
             m_reg_scal_solve_op->setDomainBC(m_incflo->get_diffuse_scalar_bc(Orientation::low,
                                                                              bcrec[comp].lo()),
-                                             m_incflo->get_diffuse_scalar_bc(Orientation::high,
-                                                                             bcrec[comp].hi()));
+                                             cryo_top_robin(m_incflo->get_diffuse_scalar_bc(Orientation::high,
+                                                                             bcrec[comp].hi()), cryo_temp_top));
 
             for (int lev = 0; lev <= finest_level; ++lev) {
                 if ( comp > 0 && (use_chi[comp] != use_chi[comp-1]) ) {
@@ -290,6 +304,13 @@ DiffusionScalarOp::diffuse_scalar (Vector<MultiFab*> const& a_scalar,
                     m_eb_scal_solve_op->setLevelBC(lev, &phi[lev],
                                                    &robin[0], &robin[1], &robin[2]);
                 }
+#ifdef INCFLO_SIM_CRYO
+                else if (cryo_temp_top) {
+                    auto const robin = m_incflo->make_cryo_temperature_robinBC_MFs(lev);
+                    m_eb_scal_solve_op->setLevelBC(lev, &phi[lev],
+                                                   &robin[0], &robin[1], &robin[2]);
+                }
+#endif
                 else {
                     m_eb_scal_solve_op->setLevelBC(lev, &phi[lev]);
                 }
@@ -299,7 +320,16 @@ DiffusionScalarOp::diffuse_scalar (Vector<MultiFab*> const& a_scalar,
             } else
 #endif
             {
-                m_reg_scal_solve_op->setLevelBC(lev, &phi[lev]);
+#ifdef INCFLO_SIM_CRYO
+                if (cryo_temp_top) {
+                    auto const robin = m_incflo->make_cryo_temperature_robinBC_MFs(lev);
+                    m_reg_scal_solve_op->setLevelBC(lev, &phi[lev],
+                                                    &robin[0], &robin[1], &robin[2]);
+                } else
+#endif
+                {
+                    m_reg_scal_solve_op->setLevelBC(lev, &phi[lev]);
+                }
             }
         }
 
@@ -488,7 +518,8 @@ DiffusionScalarOp::diffuse_vel_components (Vector<MultiFab*> const& vel,
 void DiffusionScalarOp::compute_laps (Vector<MultiFab*> const& a_laps,
                                       Vector<MultiFab const*> const& a_scalar,
                                       Vector<MultiFab const*> const& a_eta,
-                                      amrex::Vector<amrex::BCRec> bcrec)
+                                      amrex::Vector<amrex::BCRec> bcrec,
+                                      bool cryo_temp_top)
 {
     BL_PROFILE("DiffusionScalarOp::compute_laps");
 
@@ -518,8 +549,8 @@ void DiffusionScalarOp::compute_laps (Vector<MultiFab*> const& a_laps,
         for (int comp = 0; comp < n_comp; ++comp) {
             m_eb_scal_apply_op->setDomainBC(m_incflo->get_diffuse_scalar_bc(Orientation::low,
                                                                             bcrec[comp].lo()),
-                                            m_incflo->get_diffuse_scalar_bc(Orientation::high,
-                                                                            bcrec[comp].hi()));
+                                            cryo_top_robin(m_incflo->get_diffuse_scalar_bc(Orientation::high,
+                                                                            bcrec[comp].hi()), cryo_temp_top));
 
             int eta_comp = comp;
 
@@ -546,6 +577,13 @@ void DiffusionScalarOp::compute_laps (Vector<MultiFab*> const& a_laps,
                     m_eb_scal_apply_op->setLevelBC(lev, &scalar_comp[lev],
                                                    &robin[0], &robin[1], &robin[2]);
                 }
+#ifdef INCFLO_SIM_CRYO
+                else if (cryo_temp_top) {
+                    auto const robin = m_incflo->make_cryo_temperature_robinBC_MFs(lev);
+                    m_eb_scal_apply_op->setLevelBC(lev, &scalar_comp[lev],
+                                                   &robin[0], &robin[1], &robin[2]);
+                }
+#endif
                 else {
                     m_eb_scal_apply_op->setLevelBC(lev, &scalar_comp[lev]);
                 }
@@ -578,8 +616,8 @@ void DiffusionScalarOp::compute_laps (Vector<MultiFab*> const& a_laps,
         for (int comp = 0; comp < n_comp; ++comp) {
             m_reg_scal_apply_op->setDomainBC(m_incflo->get_diffuse_scalar_bc(Orientation::low,
                                                                              bcrec[comp].lo()),
-                                             m_incflo->get_diffuse_scalar_bc(Orientation::high,
-                                                                             bcrec[comp].hi()));
+                                             cryo_top_robin(m_incflo->get_diffuse_scalar_bc(Orientation::high,
+                                                                             bcrec[comp].hi()), cryo_temp_top));
 
             int eta_comp = comp;
 
@@ -592,7 +630,16 @@ void DiffusionScalarOp::compute_laps (Vector<MultiFab*> const& a_laps,
                     b = m_incflo->average_scalar_eta_to_faces(lev, eta_comp, *a_eta[lev]);
 
                 m_reg_scal_apply_op->setBCoeffs(lev, GetArrOfConstPtrs(b));
-                m_reg_scal_apply_op->setLevelBC(lev, &scalar_comp[lev]);
+#ifdef INCFLO_SIM_CRYO
+                if (cryo_temp_top) {
+                    auto const robin = m_incflo->make_cryo_temperature_robinBC_MFs(lev);
+                    m_reg_scal_apply_op->setLevelBC(lev, &scalar_comp[lev],
+                                                    &robin[0], &robin[1], &robin[2]);
+                } else
+#endif
+                {
+                    m_reg_scal_apply_op->setLevelBC(lev, &scalar_comp[lev]);
+                }
             }
 
             MLMG mlmg(*m_reg_scal_apply_op);

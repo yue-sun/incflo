@@ -234,6 +234,9 @@ void incflo::fillpatch_temperature (int lev, Real time, MultiFab& temperature, i
                            cphysbc, 0, fphysbc, 0,
                            refRatio(lev-1), mapper, bcrec, 0);
     }
+#ifdef INCFLO_SIM_CRYO
+    if (ng > 0 && cryo_temp_top_dirichlet()) { cryo_set_temperature_top_ghost(lev, temperature); }
+#endif
 }
 
 void incflo::fillpatch_gradp (int lev, Real time, MultiFab& gp, int ng)

@@ -93,6 +93,12 @@ cryo_stamp::DiskParams cryo_disk_params(amrex::Real velz_plunge,
 // cryo_plunge_vel / cryo_plunge_time table it needs).
 void cryo_read_plunge_protocol();
 
+// incflo.cryo_temp_top_bc = dirichlet: T_entry on zhi above solid columns
+[[nodiscard]] bool cryo_temp_top_dirichlet () const noexcept { return m_sim_cryo && m_cryo_temp_top_dirichlet; }
+std::unique_ptr<amrex::iMultiFab> make_cryo_temperature_BC_MF (int lev);
+amrex::Vector<amrex::MultiFab> make_cryo_temperature_robinBC_MFs (int lev);
+void cryo_set_temperature_top_ghost (int lev, amrex::MultiFab& temperature);
+
 private:   // restore the access level incflo.H had before including this header
 
 #endif
