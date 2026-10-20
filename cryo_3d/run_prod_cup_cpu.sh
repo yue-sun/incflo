@@ -9,6 +9,8 @@
 # Usage:
 #   ./run_prod_cup_cpu.sh
 #   NRANKS=64 INPUT=inputs.cryo_cup_eb_l0 ./run_prod_cup_cpu.sh
+#   ./run_prod_cup_cpu.sh amr.restart=/abs/path/to/chkNNNNN stop_time=20.0
+#   (extra args are passed through to incflo and override the input file)
 #
 # Writes to the run dir: run.log, host_usage.csv, disk_usage.csv,
 # step_times.csv, cells.csv, summary.txt  (for results/diag/run_time_usage_diag.py)
@@ -58,6 +60,7 @@ mpirun -np "${NRANKS}" --map-by numa --bind-to core --report-bindings \
     incflo.cryo_grid_file="${REPO_ROOT}/data/grids/grid_Au_carbon_realAu300QuantifoilR14_v260930.hmap" \
     incflo.cryo_sample_place="${REPO_ROOT}/data/samples/cells.samples_mixed3" \
     incflo.cryo_temp_stats_file="${run_dir}/temperature_stats_${case_name}.dat" \
+    "$@" \
     2>&1 | tee -i run.log
 status=${PIPESTATUS[0]}
 set -e
