@@ -65,3 +65,7 @@ rfb*/chk*/
 # Simulation output (run dirs, plotfiles, checkpoints, runtime diagnostics)
 rfb_no_eb_3d/out_*/
 Backtrace.*
+
+# Generated single-fiber decks (rfb3dviz-dev/gen_single_fiber_deck.py); track the generator, not its output
+rfb_no_eb_3d/test.sf*
+rfb_no_eb_3d/loc.sf*
