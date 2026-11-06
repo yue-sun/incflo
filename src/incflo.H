@@ -643,6 +643,11 @@ private:
     bool m_sim_rfb = false;
     int m_rfb_num_fibers = 0;
     std::string m_rfb_loc_file = "";
+    // incflo.rfb_mask_mac: in the MAC projection, set the face velocity to zero on faces that
+    // touch a fiber cell and multiply their coefficient (1/rho) by rfb_mask_eps, so the MAC
+    // projection does not push fluid into or through the fiber.
+    bool m_rfb_mask_mac = false;
+    amrex::Real m_rfb_mask_eps = 1.e-3;
     amrex::Vector<amrex::Vector<amrex::Real>> m_rfb_fibers;
 #endif
 

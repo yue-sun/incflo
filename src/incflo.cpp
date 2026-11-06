@@ -99,6 +99,10 @@ void incflo::InitData ()
     {
         // Read starting configuration from chk file.
         ReadCheckpointFile();
+#ifdef INCFLO_SIM_RFB
+        // Checkpoints do not store cell_type: mark the fiber cells again.
+        if (m_sim_rfb) { rfb_mark_fiber_cells(); }
+#endif
 
 #ifdef INCFLO_USE_PARTICLES
         particleData.Redistribute();

@@ -178,6 +178,8 @@ void incflo::ReadParameters ()
         // RFB settings
         pp.query("sim_rfb", m_sim_rfb);
         pp.query("rfb_loc_file", m_rfb_loc_file);
+        pp.query("rfb_mask_mac", m_rfb_mask_mac);
+        pp.query("rfb_mask_eps", m_rfb_mask_eps);
 
         std::ifstream ifs(m_rfb_loc_file);
         if (!ifs.is_open()) {

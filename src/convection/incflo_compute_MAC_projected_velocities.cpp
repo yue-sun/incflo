@@ -88,7 +88,16 @@ incflo::compute_MAC_projected_velocities (
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
             inv_rho[lev][idim].invert(l_dt, 0);
         }
+#ifdef INCFLO_SIM_RFB
+        if (m_sim_rfb && m_rfb_mask_mac) { rfb_mask_face_coeffs(lev, inv_rho[lev]); }
+#endif
     }
+
+    // With the masked projection the coefficients vary in space even at constant density.
+    bool use_constant_beta = m_constant_density;
+#ifdef INCFLO_SIM_RFB
+    if (m_sim_rfb && m_rfb_mask_mac) { use_constant_beta = false; }
+#endif
 
     //
     // Initialize (or redefine the beta in) the MacProjector
@@ -98,7 +107,7 @@ incflo::compute_MAC_projected_velocities (
         LPInfo lp_info;
         lp_info.setMaxCoarseningLevel(m_mac_mg_max_coarsening_level);
 #ifndef AMREX_USE_EB
-        if (m_constant_density) {
+        if (use_constant_beta) {
             Vector<BoxArray> ba;
             Vector<DistributionMapping> dm;
             for (auto const& ir : inv_rho) {
@@ -123,7 +132,7 @@ incflo::compute_MAC_projected_velocities (
         }
     } else {
 #ifndef AMREX_USE_EB
-        if (m_constant_density) {
+        if (use_constant_beta) {
             macproj->updateBeta(l_dt/m_ro_0);  // unnecessary unless m_ro_0 changes.
         } else
 #endif
@@ -262,6 +271,13 @@ incflo::compute_MAC_projected_velocities (
 #endif
         } // mfi
     } // lev
+
+#ifdef INCFLO_SIM_RFB
+    // Masked projection: no flow through the faces of the fiber cells.
+    if (m_sim_rfb && m_rfb_mask_mac) {
+        for (int lev = 0; lev <= finest_level; ++lev) { rfb_zero_face_velocity(lev, mac_vec[lev]); }
+    }
+#endif
 
     // Enforce solvability by matching outflow to inflow.
     if (has_inout_bndry)

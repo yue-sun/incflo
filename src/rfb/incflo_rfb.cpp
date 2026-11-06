@@ -132,3 +132,71 @@ void incflo::set_rfb_velocity()
     }
 #endif
 }
+
+void incflo::rfb_mark_fiber_cells()
+{
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto &ld = *m_leveldata[lev];
+        Box const& domain = geom[lev].Domain();
+        auto const& dx = geom[lev].CellSizeArray();
+        auto const& problo = geom[lev].ProbLoArray();
+        auto const& probhi = geom[lev].ProbHiArray();
+        for (MFIter mfi(ld.cell_type, false); mfi.isValid(); ++mfi)
+        {
+            Box const& vbx = mfi.validbox();
+            Box const& gbx = amrex::grow(vbx, ld.cell_type.nGrow());
+            init_rfb_geometry(vbx, gbx, ld.velocity.array(mfi), ld.density.array(mfi),
+                              ld.cell_type.array(mfi), domain, dx, problo, probhi);
+        }
+    }
+}
+
+amrex::iMultiFab incflo::rfb_cell_type_with_ghost(int lev) const
+{
+    auto const& ct = m_leveldata[lev]->cell_type;
+    iMultiFab out(ct.boxArray(), ct.DistributionMap(), 1, 1);
+    out.setVal(0);
+    iMultiFab::Copy(out, ct, 0, 0, 1, 0);
+    out.FillBoundary(geom[lev].periodicity());
+    return out;
+}
+
+void incflo::rfb_mask_face_coeffs(int lev, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& beta) const
+{
+    iMultiFab ct = rfb_cell_type_with_ghost(lev);
+    Real const eps = m_rfb_mask_eps;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d)
+    {
+        IntVect const e = IntVect::TheDimensionVector(d);
+        for (MFIter mfi(beta[d], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box const& fbx = mfi.tilebox();
+            Array4<Real> const& b = beta[d].array(mfi);
+            Array4<int const> const& c = ct.const_array(mfi);
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (c(i,j,k) == 1 || c(i-e[0],j-e[1],k-e[2]) == 1) { b(i,j,k) *= eps; }
+            });
+        }
+    }
+}
+
+void incflo::rfb_zero_face_velocity(int lev, amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> const& umac) const
+{
+    iMultiFab ct = rfb_cell_type_with_ghost(lev);
+    for (int d = 0; d < AMREX_SPACEDIM; ++d)
+    {
+        IntVect const e = IntVect::TheDimensionVector(d);
+        for (MFIter mfi(*umac[d], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box const& fbx = mfi.tilebox();
+            Array4<Real> const& u = umac[d]->array(mfi);
+            Array4<int const> const& c = ct.const_array(mfi);
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (c(i,j,k) == 1 || c(i-e[0],j-e[1],k-e[2]) == 1) { u(i,j,k) = 0.0; }
+            });
+        }
+    }
+}
